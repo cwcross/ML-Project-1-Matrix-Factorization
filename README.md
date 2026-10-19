@@ -1,4 +1,4 @@
-# ML-Project-1-Matrix-Factorization
+# Recommendation Algorithms 
 
 **Implementation:**
 
@@ -23,7 +23,8 @@
 
 **Team Plan:**
 
-* A \+ B: Matrix Factorization Implementation  
+* A: Data cleaning and tidying \+ main algorithm implementation  
+* B: Data splits \+ main algorithm implementation  
 * C: Tests, benchmarks, comparisons, oversight / help where needed
 
 **Milestones and Deliverables:**
