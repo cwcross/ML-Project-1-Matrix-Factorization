@@ -41,3 +41,4 @@
 1. [http\://ocelma.net/MusicRecommendationDataset/lastfm-360K.html](http://ocelma.net/MusicRecommendationDataset/lastfm-360K.html)  
 2. [https\://github.com/benfred/implicit](https://github.com/benfred/implicit?tab=readme-ov-file)  
 3. [https\://developers.google.com/machine-learning/recommendation/collaborative/matrix](https://developers.google.com/machine-learning/recommendation/collaborative/matrix) 
+4. [https://apxml.com/courses/building-ml-recommendation-system/chapter-4-model-based-collaborative-filtering/optimization-with-sgd](https://apxml.com/courses/building-ml-recommendation-system/chapter-4-model-based-collaborative-filtering/optimization-with-sgd)
