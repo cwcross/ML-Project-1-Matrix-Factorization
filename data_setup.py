@@ -45,9 +45,12 @@ def download_data():
 
     extracted_dir = RAW_DATA_DIR / "lastfm-dataset-360K"
     extracted = extracted_dir / "usersha1-artmbid-artname-plays.tsv"
+    print(f"renaming file to {DESTINATION_PATH}")
     extracted.rename(DESTINATION_PATH)
+    print("cleaning up")
     ARCHIVE.unlink()
     shutil.rmtree(extracted_dir)
+    print("done")
 
 
 def main():
