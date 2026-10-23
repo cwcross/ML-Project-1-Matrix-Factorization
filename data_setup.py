@@ -51,6 +51,7 @@ def download_data():
 def main():
     verify_execution_context()
     verify_raw_data_dir()
+    download_data()
 
 
 if __name__ == "__main__":
