@@ -35,7 +35,9 @@ def download_data():
         return
 
     print("downloading data. this may take a while. if interrupted, you will need to clean up download fragments and restart.")
-    urllib.request.urlretrieve(DATA_URL, ARCHIVE)
+    req = urllib.request.Request(DATA_URL, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req) as response, open(ARCHIVE, "wb") as f:
+        shutil.copyfileobj(response, f)
 
     print("extracting data from tarfile")
     with tarfile.open(ARCHIVE) as archive:
