@@ -7,7 +7,8 @@
 
 **Datasets:**
 
-* Last.fm Music Recommendation Dataset, 17,559,530 tuples of \<user, artist, plays\> \[1\]  
+* Last.fm 360k Music Recommendation Dataset, 17,559,530 tuples of \<user, artist, plays\> \[1\]
+* 358,868 unique users
 * **Develop on 20,000 users**
 
 **Evaluation:**
