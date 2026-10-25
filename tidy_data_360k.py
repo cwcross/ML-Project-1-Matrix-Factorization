@@ -11,17 +11,17 @@ NUM_USERS = 20000 # the number of users to filter down to
 def read_data() -> pd.DataFrame:
     filename = Path("raw_data") / "lastfm_360k_dataset.tsv"
     if filename.exists():
-        return pd.read_csv(filename, sep='\t')
+        return pd.read_csv(filename, sep='\t', header=None, names=["user_sha1", "artist_mbid", "artist", "play_count"])
     else:
         raise FileNotFoundError("You must download the data to raw_data/lastfm_360k_dataset.tsv from the link http://mtg.upf.edu/static/datasets/last.fm/lastfm-dataset-360K.tar.gz")
 
 
-def basic_cleanup(fm_df: pd.DataFrame):
-    # TODO: change this from a function that modifies in-place?
-    fm_df.columns = ["user_sha1", "artist_mbid", "artist", "play_count"]
+def basic_cleanup(fm_df: pd.DataFrame) -> pd.DataFrame:
+    cleaned_df = fm_df.copy()
     # Set column types
-    fm_df['user_sha1'] = fm_df['user_sha1'].astype('category')
-    fm_df['artist_mbid'] = fm_df['artist_mbid'].astype('category')
+    cleaned_df['user_sha1'] = cleaned_df['user_sha1'].astype('category')
+    cleaned_df['artist_mbid'] = cleaned_df['artist_mbid'].astype('category')
+    return cleaned_df
 
 
 def get_users(fm_df: pd.DataFrame) -> pd.Series:
@@ -51,10 +51,13 @@ def filter_sufficient_data(df: pd.DataFrame) -> pd.DataFrame:
 
         # if every row meets both criteria (boolean mask intersection is all true), stop filtering loop
         if (enough_listeners & enough_artists).all():
+            filtered['user_sha1'] = filtered['user_sha1'].cat.remove_unused_categories()
+            filtered['artist_mbid'] = filtered['artist_mbid'].cat.remove_unused_categories()
             return filtered
-        filtered = filtered[enough_listeners & enough_artists]
+        filtered = filtered[enough_listeners & enough_artists].copy()
         filtered['user_sha1'] = filtered['user_sha1'].cat.remove_unused_categories()
         filtered['artist_mbid'] = filtered['artist_mbid'].cat.remove_unused_categories()
+        i += 1
     # raise an error if max iterations exceeded
     raise RuntimeError("The data couldn't be filtered, check that the right dataset is being used")
 
@@ -120,10 +123,10 @@ def save_tidied_data(sparse_matrix: csr_matrix, mappings: dict[str, pd.Index]) -
 
 def main():
     fm_df = read_data()
-    basic_cleanup(fm_df)
-    all_users = get_users(fm_df)
-    fm_df_subset = filter_sufficient_data(fm_df)
-    fm_df_subset = get_selection(fm_df, all_users, NUM_USERS)
+    cleaned_df = basic_cleanup(fm_df)
+    fm_df_subset = filter_sufficient_data(cleaned_df)
+    all_users = get_users(fm_df_subset)
+    fm_df_subset = get_selection(fm_df_subset, all_users, NUM_USERS)
     mbid_artist_map = get_mbid_artist_map(fm_df_subset)
     fm_df_subset = fm_df_subset.drop(columns=['artist'])
     consolidated_df = consolidate_rows(fm_df_subset)
