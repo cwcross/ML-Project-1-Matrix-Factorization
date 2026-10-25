@@ -98,6 +98,7 @@ def create_sparse_matrix(consolidated_df: pd.DataFrame, mbid_artist_map: dict) -
         (consolidated_df['play_count'], (user_idx, artist_idx)),
         shape=(user_cat.cat.categories.size, artist_cat.cat.categories.size)
     )
+    sparse_matrix.sum_duplicates() # eliminate duplicates by adding them together
 
     # Keep the labels so you can map back
     users = user_cat.cat.categories
