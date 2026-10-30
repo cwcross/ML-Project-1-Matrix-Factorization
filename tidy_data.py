@@ -21,6 +21,9 @@ def basic_cleanup(fm_df: pd.DataFrame) -> pd.DataFrame:
     # Set column types
     cleaned_df['user_sha1'] = cleaned_df['user_sha1'].astype('category')
     cleaned_df['artist_mbid'] = cleaned_df['artist_mbid'].astype('category')
+    # We verified separately that all play counts are positive in this dataset,
+    # but it would be necessary to enforce that invariant if using a different
+    # dataset.
     return cleaned_df
 
 
