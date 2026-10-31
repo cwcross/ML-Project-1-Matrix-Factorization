@@ -40,6 +40,25 @@ def load_dataset(file_path: str | Path):
     return dataset
 
 
+def overlap_count(A: csr_matrix, B: csr_matrix) -> int:
+    """
+    Function to count the overlaps in sparse matrices.
+    
+    Parameters:
+    A (csr_marix): The first sparse matrix to compare.
+    B (csr_matrix): The second sparse matrix to compare.
+    
+    Returns:
+    int
+    """
+    # Check by multiplying the matrices
+    # Only left with a nonzero entry if matching locations are nonzero
+    # Simplify multiplication by converting to ones in small ints
+    A.data = np.ones_like(A.data, dtype=np.int8)
+    B.data = np.ones_like(B.data, dtype=np.int8)
+    return A.multiply(B).nnz
+
+
 def validate(data: DatasetSplits) -> None:
     """
     Function to validate the dataset splits.
@@ -51,7 +70,17 @@ def validate(data: DatasetSplits) -> None:
     None
     """
     # Implement the logic to validate the dataset splits
-    raise NotImplementedError("validate")
+
+    # First check: all splits should be the same shape
+    if data.train.shape != data.validation.shape or data.train.shape != data.test.shape:
+        raise RuntimeError("Data splits have different shapes")
+    # Second check: no leakage
+    # there should be no overlap in the matrices
+    splits = {"train": data.train, "validation": data.validation, "test": data.test}
+    for a, b in [("train", "validation"), ("train", "test"), ("validation", "test")]:
+        if overlap_count(splits[a], splits[b]) != 0:
+            raise RuntimeError("Data splits are not pairwise disjoint")         
+
 
 def build_known_positive_mask(data: DatasetSplits) -> csr_matrix:
     """

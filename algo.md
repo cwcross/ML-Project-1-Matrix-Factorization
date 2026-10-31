@@ -164,14 +164,34 @@ Then we shuffle the entries of these arrays, keeping them aligned with one anoth
 
 These four arrays represent all the data we feed into the model to train it in a given epoch.
 
+### Model Overview
+
+We have a sparse $\text{users} \times \text{artists}$ matrix $R$. The data is split into three matrices of the same shape, with different samples of the data, $R_\text{train}$, $R_\text{val}$, and $R_\text{test}$.
+
+We are training a latent factor vector $p_u \in \mathbb{R}^k$ with $k$ dimensions for each user $u$, and a latent factor vector $q_i \in \mathbb{R}^k$ for each artist $i$.
+
+We define dense matrices that store these vectors:
+
+$$
+P \in \mathbb{R}^{n_\text{users} \times k}, \qquad Q \in \mathbb{R}^{n_\text{artists} \times k}
+$$
+
+We define the compatibility score of a user-artist pair using the dot product of the vectors, and use the sigmoid to convert that into a probability:
+
+$$
+s_{ui} = p_u^\top q_i = \sum_{f=1}^k p_{uf}\, q_{if}, \qquad \hat p_{ui} = \sigma(s_{ui}) = \frac{1}{1 + e^{-s_{ui}}}
+$$
+
 ### Updates
 
 We loop over the examples in the data. For each example $(u, i, y, w)$ from arrays $(\text{users}, \text{artists}, W, Y)$:
-
+ 
 1. Record score.
 
+    > This captures
+
 $$
-s = p_u^\top q_i
+s_{ui} = p_u^\top q_i = \sum_{f=1}^kp_{uf}q_{if}, \qquad \hat p = \sigma(s)
 $$
 
 ---
