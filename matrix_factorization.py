@@ -110,7 +110,16 @@ def extract_positive_interactions(matrix: csr_matrix, ) -> tuple[np.ndarray, np.
     Ensure zeros have been eliminated and duplicate coordinates summed before extraction.
     """
     # Implement the logic to extract positive interactions
-    raise NotImplementedError("extract_positive_interactions")
+    assert matrix.has_canonical_format, f"matrix has duplicates/unsorted indices"
+    assert not (matrix.data == 0).any(), f"matrix has explicit zeros"
+
+    coo = matrix.tocoo()
+    users = coo.row
+    artists = coo.col
+    play_counts = coo.data
+
+    return users, artists, play_counts
+
 
 def sample_negative_items(positive_users: np.ndarray, known_positive: csr_matrix, n_artists: int, negatives_per_positive: int, rng: np.random.Generator) -> np.ndarray:
     """
