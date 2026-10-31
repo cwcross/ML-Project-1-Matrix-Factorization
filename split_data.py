@@ -43,13 +43,13 @@ def split_data(sparse_matrix: csr_matrix) -> tuple[csr_matrix, csr_matrix, csr_m
         # random order
         order = rng.permutation(num_artists)
         # store the number of artists in each split
-        num_artists_validation = int(SPLITS["validation"] * num_artists)
-        num_artists_test = int(SPLITS["test"] * num_artists)
+        num_artists_validation = max(1, int(SPLITS["validation"] * num_artists))
+        num_artists_test = max(1, int(SPLITS["test"] * num_artists))
         # assign labels for validation and test (train is zero by default from np.zeros)
         for i in range(num_artists_validation):
             split_labels[start + order[i]] = 1
         for i in range(num_artists_test):
-            split_labels[start + order[num_artists_validation + i]] = 2
+            split_labels[start + order[num_artists_validation + i]] = 2    
 
     train = isolate_split(sparse_matrix, split_labels, 0)
     validation = isolate_split(sparse_matrix, split_labels, 1)
