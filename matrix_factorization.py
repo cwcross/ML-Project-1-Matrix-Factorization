@@ -133,13 +133,19 @@ def initialize_model(n_users: int, n_artists: int, n_factors: int, seed: int) ->
 
     Initializes small random values using np.random.default_rng(seed). Uses a reproducible seed.
     """
-    raise NotImplementedError("initialize_model")
+
+    user_factors = np.random.default_rng(seed).normal(loc=0.0, scale=0.01, size=(n_users, n_factors)).astype(np.float32)
+    artist_factors = np.random.default_rng(seed).normal(loc=0.0, scale=0.01, size=(n_artists, n_factors)).astype(np.float32)
+    return MFModel(user_factors=user_factors, artist_factors=artist_factors)
+
 
 
 def sigmoid(scores: np.ndarray) -> np.ndarray:
     """
     pretty self explanatory, eh?
     """
+    
+
     raise NotImplementedError("sigmoid")
 
 
