@@ -53,6 +53,8 @@ def validate(data: DatasetSplits) -> None:
     # Implement the logic to validate the dataset splits
     raise NotImplementedError("validate")
 
+
+
 def build_known_positive_mask(data: DatasetSplits) -> csr_matrix:
     """
     Function to build a known positive mask from the dataset splits.
@@ -71,6 +73,7 @@ def build_known_positive_mask(data: DatasetSplits) -> csr_matrix:
     raise NotImplementedError("build_known_positive_mask")
 
 
+
 def extract_positive_interactions(matrix: csr_matrix, ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Input: One CSR split matrix containing play counts.
@@ -82,6 +85,7 @@ def extract_positive_interactions(matrix: csr_matrix, ) -> tuple[np.ndarray, np.
     """
     # Implement the logic to extract positive interactions
     raise NotImplementedError("extract_positive_interactions")
+
 
 def sample_negative_items(positive_users: np.ndarray, known_positive: csr_matrix, n_artists: int, negatives_per_positive: int, rng: np.random.Generator) -> np.ndarray:
     """
@@ -194,9 +198,18 @@ def predict_all_artists(model: MFModel, user_idx: int) -> np.ndarray:
     return probabilities
 
 
-######
+##################
 # Loss and SGD
-######
+##################
+
+def binary_cross_entropy_loss(predicted_probability: float, target: float) -> float:
+    """
+    Input: Predicted probability, binary target, example weight.
+
+    Output: Scalar weighted BCE loss.
+    """
+    return (target * np.log(predicted_probability) + (1 - target) * np.log(1 - predicted_probability))
+
 
 def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, target: float, weight: float,
     regularization: float,) -> float:
@@ -205,7 +218,13 @@ def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, targ
 
     Output: Scalar objective value for that one pair.
     """
-    raise NotImplementedError("calculate_pair_loss")
+    score = np.dot(user_vector, artist_vector)
+    predicted_probability:float = sigmoid(np.array(score))[0]
+    loss = binary_cross_entropy_loss(predicted_probability, target)
+
+    #TODO SOMEONE DOUBLE CHECK ME HERE I DIDNT TAKE LINEAR ALGEBRA!!!!!
+    l2_penalty = (regularization/2) * (np.dot(user_vector,user_vector.T) + np.dot(artist_vector, artist_vector.T)) 
+    return float(weight * loss + l2_penalty)
 
 
 def calculate_score_gradient(predicted_probability: float, target: float, weight: float) -> float:
@@ -214,7 +233,8 @@ def calculate_score_gradient(predicted_probability: float, target: float, weight
 
     Output: Scalar g = weight * (predicted_probability - target)    
     """
-    raise NotImplementedError("calculate_score_gradient")
+    score_gradient = weight * (predicted_probability - target)
+    return score_gradient
 
 
 def sgd_update(model: MFModel, user_idx: int, artist_idx: int, target: float, weight: float, learning_rate: float, regularization: float) -> float:
@@ -225,16 +245,41 @@ def sgd_update(model: MFModel, user_idx: int, artist_idx: int, target: float, we
 
     Read/copy old p_u and q_i; calculate score and sigmoid; calculate g; calculate both gradients from the old vectors; update those two rows in place.
     """
-    raise NotImplementedError("sgd_update")
+    old_user_vector = model.user_factors[user_idx].copy()
+    old_artist_vector = model.artist_factors[artist_idx].copy()
+
+    score = np.dot(old_user_vector, old_artist_vector)
+    predicted_probability = sigmoid(np.array(score))[0]
+    score_gradient_weighted_error = calculate_score_gradient(predicted_probability, target, weight)
+
+    user_gradient = score_gradient_weighted_error * old_artist_vector + regularization * old_user_vector
+    user_updated = old_user_vector - learning_rate * user_gradient
+
+    artist_gradient = score_gradient_weighted_error * old_user_vector + regularization * old_artist_vector
+    artist_updated = old_artist_vector - learning_rate * artist_gradient
+
+    model.artist_factors[artist_idx] = artist_updated
+    model.user_factors[user_idx] = user_updated
+
+    return calculate_pair_loss(old_user_vector, old_artist_vector, target, weight, regularization)
 
 
 def calculate_training_loss(model: MFModel, examples: TrainingBatch, regularization: float) -> float:
     """
     Input: Model and a fixed batch of labelled examples.
 
-    Output: Mean per-example weighted BCE plus per-example L2 penalty/
+    Output: Mean per-example weighted BCE plus per-example L2 penalty.
     """
-    raise NotImplementedError("calculate_training_loss")
+    total_loss = 0.0
+    for user_idx, artist_idx, target, weight in zip(examples.users, examples.artists, examples.targets, examples.weights):
+        user_vector = model.user_factors[user_idx]
+        artist_vector = model.artist_factors[artist_idx]
+        loss = calculate_pair_loss(user_vector, artist_vector, target, weight, regularization)
+        total_loss += loss
+
+    mean_loss = total_loss / len(examples.users)
+    return mean_loss
+
 
 
 @dataclass
@@ -257,8 +302,13 @@ def train_one_epoch(model: MFModel, train: csr_matrix, known_positive: csr_matri
 
     Output: Scalar average training objective for this epoch.
     
-    Generate shuffled batches, process each labelled example with sequential SGD updates, accumulate a consistently defined loss, and return the epoch metric.
+    Generate shuffled batches, process each labelled example with sequential SGD updates, accumulate a consistently defined loss, 
+    and return the epoch metric.
     """
+    # Generate shuffled batches of training examples
+
+   
+
     raise NotImplementedError("train_one_epoch")
 
 

@@ -6,24 +6,25 @@ Our collaborative filtering model uses matrix factorization optimized with SGD.
 
 The data comes in a tabular format:
 
-| User | Artist | Play Count |
-|------|------|--|
-| Alice | Radiohead | 25 |
-| Alice | Bjork | 12 |
-| Alice | Daft Punk | 3 |
-| Alice | U2 | 0 |
-| Alice | Green Day | 5 |
-| Bob | Radiohead | 8 |
-| Bob | Daft Punk | 4 |
-| Bob | Taylor Swift | 30 |
-| Chris | Bjork | 15 |
-| Chris | U2 | 9 |
-| Chris | Green Day | 10 |
-| ... | ... | ... |
+| User  | Artist       | Play Count |
+| ----- | ------------ | ---------- |
+| Alice | Radiohead    | 25         |
+| Alice | Bjork        | 12         |
+| Alice | Daft Punk    | 3          |
+| Alice | U2           | 0          |
+| Alice | Green Day    | 5          |
+| Bob   | Radiohead    | 8          |
+| Bob   | Daft Punk    | 4          |
+| Bob   | Taylor Swift | 30         |
+| Chris | Bjork        | 15         |
+| Chris | U2           | 9          |
+| Chris | Green Day    | 10         |
+| ...   | ...          | ...        |
 
 ### Basic Cleaning
 
 We first clean this data:
+
 * Combine duplicates
 * Join artists based on universal ID
 
@@ -141,13 +142,13 @@ For each of these users, we need to find a negative artist interaction (where $r
 
 The result of this is several arrays:
 
-| Array | Description |
-|--|--|
-| $\text{users}_\text{pos}$ | each user's index $u$ appears $n$ times, where $n$ is the number of artists they have a positive interaction with |
-| $\text{artists}_\text{pos}$ | parallel to $\text{users}_\text{pos}$, which has one entry per positive example; this array contains the artist index $i$ corresponding with each example |
-| $W_\text{pos}$ | parallel to $\text{users}_\text{pos}$, which has one entry per positive example; this array contains the weight $w$ corresponding with each example |
-| $\text{users}_\text{neg}$ | each users's index $u$ appears $n \times m$ times, where $n$ is the number of artists they have a positive interaction with, and $m$ is the hyperparameter controlling the number of negative examples per positive example |
-| $\text{artists}_\text{neg}$ | parallel to $\text{users}_\text{neg}$, which has one entry per negative example; this array contains the artist index $i$ corresponding with each example |
+| Array                         | Description                                                                                                                                                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| $\text{users}_\text{pos}$   | each user's index $u$ appears $n$ times, where $n$ is the number of artists they have a positive interaction with                                                                                                             |
+| $\text{artists}_\text{pos}$ | parallel to $\text{users}_\text{pos}$, which has one entry per positive example; this array contains the artist index $i$ corresponding with each example                                                                       |
+| $W_\text{pos}$              | parallel to $\text{users}_\text{pos}$, which has one entry per positive example; this array contains the weight $w$ corresponding with each example                                                                             |
+| $\text{users}_\text{neg}$   | each users's index $u$ appears $n \times m$ times, where $n$ is the number of artists they have a positive interaction with, and $m$ is the hyperparameter controlling the number of negative examples per positive example |
+| $\text{artists}_\text{neg}$ | parallel to $\text{users}_\text{neg}$, which has one entry per negative example; this array contains the artist index $i$ corresponding with each example                                                                       |
 
 ### Combining Data and Shuffling
 
@@ -175,18 +176,6 @@ s = p_u^\top q_i
 $$
 
 ---
-
-
-
-
-
-
-
-
-
-
-
-
 
 ---
 
