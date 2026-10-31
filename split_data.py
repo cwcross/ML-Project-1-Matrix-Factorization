@@ -58,31 +58,18 @@ def split_data(sparse_matrix: csr_matrix) -> tuple[csr_matrix, csr_matrix, csr_m
     return train, validation, test
 
 
-def enforce_k_core(matrix: csr_matrix, k: int=5) -> 
-
-
 def filter_missing_artists(train: csr_matrix, validation: csr_matrix, test: csr_matrix) -> tuple[csr_matrix, csr_matrix, csr_matrix]:
-    min_listeners = 5
-    min_artists = 5
-    train_filtered = train.copy()
-    validation_filtered = validation.copy()
-    test_filtered = test.copy()
     (artist_mbid_mappings, artist_name_mappings) = load_artist_mappings()
-    max_iterations = 1000
-    i = 0
-    while i < max_iterations:
-        # filter for only artists represented in training data
-        artists_in_train = np.nonzero(train.sum(axis=0))[1]
-        # dropping artists messes up the labels for artist column indices, so we need to fix that
-        artist_mbid_mappings = artist_mbid_mappings[artists_in_train]
-        artist_name_mappings = artist_name_mappings[artists_in_train]
-        # now we need to check if the 5-core invariant has been broken
-        
-        # return modified matrices, dropping columns for artists not in training data
-
+    # filter for only artists represented in training data
+    artists_to_keep = np.nonzero(train.sum(axis=0))[1]
+    # dropping artists messes up the labels for artist column indices, so we need to fix that
+    artist_mbid_mappings = artist_mbid_mappings[artists_to_keep]
+    artist_name_mappings = artist_name_mappings[artists_to_keep]
+    # save new mappings
     np.save(DATA_DIR / "artist_mbid_mappings.npy", artist_mbid_mappings, allow_pickle=True)
     np.save(DATA_DIR / "artist_mappings.npy", artist_name_mappings, allow_pickle=True)
-    return train[:, artists_in_train], validation[:, artists_in_train], test[:, artists_in_train]
+    # return filtered matrices
+    return train[:, artists_to_keep], validation[:, artists_to_keep], test[:, artists_to_keep]
 
 
 def save_split_data(train: csr_matrix, validation: csr_matrix, test: csr_matrix) -> None:
