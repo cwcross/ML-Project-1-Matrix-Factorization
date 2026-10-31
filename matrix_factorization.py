@@ -27,12 +27,17 @@ def load_dataset(file_path: str | Path):
     data: The imported data.
     """
     # Implement the logic to read the data from the file
-
+    data_dir = Path("data")
 
     dataset = DatasetSplits(
-        load_npz()
+        train=load_npz(data_dir / "train.npz"),
+        validation=load_npz(data_dir / "validation.npz"),
+        test=load_npz(data_dir / "test.npz"),
+        user_ids=np.load(data_dir / "user_sha1_mappings.npy"),
+        artist_mbids=np.load(data_dir / "user_mbid_mappings.npy"),
+        artist_names=np.load(data_dir / "artist_mappings.npy")
     )
-    raise NotImplementedError("import_data")
+    return dataset
 
 
 def validate(data: DatasetSplits) -> None:
