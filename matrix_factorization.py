@@ -149,9 +149,8 @@ def sigmoid(scores: np.ndarray) -> np.ndarray:
     """
     pretty self explanatory, eh?
     """
-    
 
-    raise NotImplementedError("sigmoid")
+    return (1 / (1 + np.exp(-scores)))
 
 
 def predict_scores(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np.ndarray:
@@ -160,7 +159,11 @@ def predict_scores(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np
 
     Output: 1-D array of raw dot-product scores, shape (n_pairs,).  
     """
-    raise NotImplementedError("predict_scores")
+    user_vectors = model.user_factors[users]
+    artist_vectors = model.artist_factors[artists]
+
+    scores = np.sum(user_vectors * artist_vectors, axis=1)
+    return scores
 
 
 def predict_probabilities(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np.ndarray:
@@ -169,16 +172,21 @@ def predict_probabilities(model: MFModel, users: np.ndarray, artists: np.ndarray
 
     Output: 1-D array of probabilities, shape (n_pairs,).  
     """
-    raise NotImplementedError("predict_probabilities")
+    scores = predict_scores(model, users, artists)
+    probabilities = sigmoid(scores)
+    return probabilities
 
 
-def predict_all_artists(model: MFModel, user_idx) -> np.ndarray:
+def predict_all_artists(model: MFModel, user_idx: int) -> np.ndarray:
     """
     Input: Model and a single user index.
 
     Output: 1-D array of probabilities for all artists, shape (n_artists,).  
     """
-    raise NotImplementedError("predict_all_artists")
+    user_vector = model.user_factors[user_idx]
+    scores = model.artist_factors @ user_vector
+    probabilities = sigmoid(scores)
+    return probabilities
 
 
 ######
