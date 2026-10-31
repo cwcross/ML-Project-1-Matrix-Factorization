@@ -27,6 +27,11 @@ def load_dataset(file_path: str | Path):
     data: The imported data.
     """
     # Implement the logic to read the data from the file
+
+
+    dataset = DatasetSplits(
+        load_npz()
+    )
     raise NotImplementedError("import_data")
 
 

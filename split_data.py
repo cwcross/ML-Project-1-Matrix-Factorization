@@ -2,7 +2,7 @@ from scipy.sparse import csr_matrix, load_npz, save_npz
 import numpy as np
 from pathlib import Path
 
-DATA_DIR = Path("data/tidied_360k")
+DATA_DIR = Path("data")
 SPLITS = {
     "train": 0.7,
     "validation": 0.2,

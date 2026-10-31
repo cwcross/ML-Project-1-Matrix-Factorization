@@ -118,7 +118,7 @@ def create_sparse_matrix(consolidated_df: pd.DataFrame, mbid_artist_map: dict) -
 
 
 def save_tidied_data(sparse_matrix: csr_matrix, mappings: dict[str, pd.Index]) -> None:
-    data_dir = Path("data/tidied_360k")
+    data_dir = Path("data")
     save_npz(data_dir / "user_artist_matrix.npz", sparse_matrix)
     np.save(data_dir / "user_sha1_mappings.npy", mappings["user_sha1_mappings"].to_numpy(), allow_pickle=True)
     np.save(data_dir / "artist_mbid_mappings.npy", mappings["artist_mbid_mappings"].to_numpy(), allow_pickle=True)

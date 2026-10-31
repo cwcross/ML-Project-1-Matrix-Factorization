@@ -149,9 +149,30 @@ The result of this is several arrays:
 | $\text{users}_\text{neg}$ | each users's index $u$ appears $n \times m$ times, where $n$ is the number of artists they have a positive interaction with, and $m$ is the hyperparameter controlling the number of negative examples per positive example |
 | $\text{artists}_\text{neg}$ | parallel to $\text{users}_\text{neg}$, which has one entry per negative example; this array contains the artist index $i$ corresponding with each example |
 
+### Combining Data and Shuffling
 
+We take all the arrays resulting from the previous step and combine them:
 
-### Combining Data
+- Stack $\text{users}_\text{pos}$ with $\text{users}_\text{neg}$ to create $\text{users}$
+- Stack $\text{artists}_\text{pos}$ with $\text{artists}_\text{neg}$ to create $\text{artists}$
+- Stack $W_\text{pos}$ with an array of all $1$ the length of $\text{users}_\text{neg}$, $W_\text{neg}$ (weight for all negative examples is $1$), to create $W$
+- Create a new array $Y_\text{pos}$ the length of $\text{users}_\text{pos}$, with every entry $1$ ($y=1$ for positive examples); create a new array $Y_\text{neg}$ the length of $\text{user}_\text{neg}$, with every entry $0$ ($y=0$ for negative examples); stack these to create $Y$
+
+The result is four parallel arrays $\text{users}, \text{artists}, W, Y$.
+
+Then we shuffle the entries of these arrays, keeping them aligned with one another. We create a random ordering of entries and apply it to every array. This means we interleave the positive and negative examples, giving smoother gradient updates in a single epoch.
+
+These four arrays represent all the data we feed into the model to train it in a given epoch.
+
+### Updates
+
+We loop over the examples in the data. For each example $(u, i, y, w)$ from arrays $(\text{users}, \text{artists}, W, Y)$:
+
+1. Record score.
+
+$$
+s = p_u^\top q_i
+$$
 
 ---
 
