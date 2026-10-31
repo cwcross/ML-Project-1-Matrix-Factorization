@@ -118,3 +118,241 @@ def make_evaluation_examples(heldout:csr_matrix, known_positive: csr_matrix, neg
 ######
 # Initialize Model and Make Predictions
 ######
+
+@dataclass
+class MFModel:
+    user_factors: np.ndarray
+    artist_factors: np.ndarray
+
+
+def initialize_model(n_users: int, n_artists: int, n_factors: int, seed: int) -> MFModel:
+    """
+    Input: User count, artist count, latent factor count, RNG seed.
+
+    Output: MFModel with user factors P.shape == (n_users, n_factors) and artist factors Q.shape == (n_artists, n_factors), float32.
+
+    Initializes small random values using np.random.default_rng(seed). Uses a reproducible seed.
+    """
+    raise NotImplementedError("initialize_model")
+
+
+def sigmoid(scores: np.ndarray) -> np.ndarray:
+    """
+    pretty self explanatory, eh?
+    """
+    raise NotImplementedError("sigmoid")
+
+
+def predict_scores(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np.ndarray:
+    """
+    Input: Model and aligned arrays of user/artist indices of equal length.
+
+    Output: 1-D array of raw dot-product scores, shape (n_pairs,).  
+    """
+    raise NotImplementedError("predict_scores")
+
+
+def predict_probabilities(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np.ndarray:
+    """
+    Input: Model and aligned arrays of user/artist indices of equal length.
+
+    Output: 1-D array of probabilities, shape (n_pairs,).  
+    """
+    raise NotImplementedError("predict_probabilities")
+
+
+def predict_all_artists(model: MFModel, user_idx) -> np.ndarray:
+    """
+    Input: Model and a single user index.
+
+    Output: 1-D array of probabilities for all artists, shape (n_artists,).  
+    """
+    raise NotImplementedError("predict_all_artists")
+
+
+######
+# Loss and SGD
+######
+
+def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, target: float, weight: float,
+    regularization: float,) -> float:
+    """
+    Input: One user vector, one artist vector, binary target, positive example weight, non-negative L2 coefficient.
+
+    Output: Scalar objective value for that one pair.
+    """
+    raise NotImplementedError("calculate_pair_loss")
+
+
+def calculate_score_gradient(predicted_probability: float, target: float, weight: float) -> float:
+    """
+    Input: Predicted probability, binary target, example weight.
+
+    Output: Scalar g = weight * (predicted_probability - target)    
+    """
+    raise NotImplementedError("calculate_score_gradient")
+
+
+def sgd_update(model: MFModel, user_idx: int, artist_idx: int, target: float, weight: float, learning_rate: float, regularization: float) -> float:
+    """
+    Input: Model, one user index, one artist index, binary target, positive sample weight, learning rate, L2 coefficient.
+
+    Output: Scalar pre-update pair objective (or document an alternative consistently).
+
+    Read/copy old p_u and q_i; calculate score and sigmoid; calculate g; calculate both gradients from the old vectors; update those two rows in place.
+    """
+    raise NotImplementedError("sgd_update")
+
+
+def calculate_training_loss(model: MFModel, examples: TrainingBatch, regularization: float) -> float:
+    """
+    Input: Model and a fixed batch of labelled examples.
+
+    Output: Mean per-example weighted BCE plus per-example L2 penalty/
+    """
+    raise NotImplementedError("calculate_training_loss")
+
+
+@dataclass
+class TrainingConfig:
+    n_factors: int
+    epochs: int
+    learning_rate: float
+    regularization: float
+    negatives_per_positive: int
+    positive_weight_alpha: float
+    batch_size: int
+    seed: int
+    top_k: int
+    early_stopping_patience: int
+
+
+def train_one_epoch(model: MFModel, train: csr_matrix, known_positive: csr_matrix, config: TrainingConfig, rng: np.random.Generator) -> float:
+    """
+    Input: Mutable model; training CSR matrix; negative-exclusion mask; validated training configuration; RNG.
+
+    Output: Scalar average training objective for this epoch.
+    
+    Generate shuffled batches, process each labelled example with sequential SGD updates, accumulate a consistently defined loss, and return the epoch metric.
+    """
+    raise NotImplementedError("train_one_epoch")
+
+
+################
+# Validation and Testing
+################
+
+def evaluate_binary_loss(model: MFModel, examples: TrainingBatch) -> float:
+    """
+    Input: Model and a fixed batch of labelled examples.
+
+    Output: Mean per-example weighted BCE.
+    """
+    raise NotImplementedError("evaluate_binary_loss")
+
+
+def evaluate_accuracy(model: MFModel, examples: TrainingBatch, threshold: float = 0.5) -> float:
+    """
+    Input: Model, labelled sampled evaluation examples, probability threshold.
+
+    Output: Fraction of examples clasified correctly.
+    """
+    raise NotImplementedError("evaluate_accuracy")
+
+
+def evaluate_ranking(model: MFModel, train: csr_matrix, heldout: csr_matrix, k:int) -> dict[str, float]:
+    """
+    Input: Model, training CSR matrix, held-out CSR matrix, integer k.
+
+    Output: Dictionary of ranking metrics (precision@k, recall@k, etc).
+    """
+    raise NotImplementedError("evaluate_ranking")
+
+
+def evaluate_model(model: MFModel, data: DatasetSplits, validation_examples: TrainingBatch, k:int) -> dict[str, float]:
+    """
+    Input: Model, complete aligned data splits, fixed validation examples, ranking cutoff.
+
+    Output: Dictionary with validation log loss, optionally others like validation accuracy, Recall@K, and NDCG@K. U choose, Sam.
+    """
+    raise NotImplementedError("evaluate_model")
+
+
+######
+# Reccomendation, saving, etc
+#######
+
+@dataclass
+class Recommendation:
+    artist_idx: int
+    artist_mbid: str
+    artist_name: str
+    score: float
+    
+
+def recommend_for_user(model: MFModel, user_idx: int, train: csr_matrix, artist_mbids: np.ndarray, 
+                       artist_names: np.ndarray, k:int) -> list[Recommendation]:
+    """
+    Input: Trained model; valid user index; training CSR matrix; aligned MBID/name mappings; recommendation count.
+
+    Output: Up to k Recommendation objects sorted by descending raw score.
+    """
+    raise NotImplementedError("recommend_for_user")
+
+
+def save_model(model: MFModel, config: TrainingConfig, output_path: str | Path) -> None:
+    """
+    Input: Model, training configuration, output path.
+
+    Output: None. Saves model and config to disk.
+    """
+    raise NotImplementedError("save_model")
+
+
+def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig]: 
+    """
+    Input: Path to model directory.
+
+    Output: Tuple of (MFModel, TrainingConfig) loaded from disk.
+    """
+    raise NotImplementedError("load_model")
+
+
+@dataclass
+class TrainingHistory:
+    train_loss: list[float]
+    validation_loss: list[float]
+    validation_recall_at_k: list[float]
+    validation_ndcg_at_k: list[float] # Sam this is Normalized Discounted Cumulative Gain you're gonna wanna look into it -Charlie
+
+
+def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, TrainingHistory]:
+    """
+    Input: Complete aligned data splits, validated training configuration.
+
+    Output: Tuple of (MFModel, TrainingHistory) after training to convergence or early stopping.
+    """
+    raise NotImplementedError("train_model")
+
+
+def main():
+    pass
+
+
+"""
+Default Configs:
+TrainingConfig(
+    n_factors=16,
+    epochs=50,
+    learning_rate=0.03,
+    regularization=0.01,
+    negatives_per_positive=3,
+    positive_weight_alpha=0.5,
+    batch_size=1024,  # positive anchors per batch
+    seed=1235,
+    top_k=10,
+    early_stopping_patience=5,
+)
+
+
+"""
