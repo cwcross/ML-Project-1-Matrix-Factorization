@@ -40,6 +40,25 @@ def load_dataset(file_path: str | Path):
     return dataset
 
 
+def overlap_count(A: csr_matrix, B: csr_matrix) -> int:
+    """
+    Function to count the overlaps in sparse matrices.
+    
+    Parameters:
+    A (csr_marix): The first sparse matrix to compare.
+    B (csr_matrix): The second sparse matrix to compare.
+    
+    Returns:
+    int
+    """
+    # Check by multiplying the matrices
+    # Only left with a nonzero entry if matching locations are nonzero
+    # Simplify multiplication by converting to ones in small ints
+    A.data = np.ones_like(A.data, dtype=np.int8)
+    B.data = np.ones_like(B.data, dtype=np.int8)
+    return A.multiply(B).nnz
+
+
 def validate(data: DatasetSplits) -> None:
     """
     Function to validate the dataset splits.
@@ -51,7 +70,17 @@ def validate(data: DatasetSplits) -> None:
     None
     """
     # Implement the logic to validate the dataset splits
-    raise NotImplementedError("validate")
+
+    # First check: all splits should be the same shape
+    if data.train.shape != data.validation.shape or data.train.shape != data.test.shape:
+        raise RuntimeError("Data splits have different shapes")
+    # Second check: no leakage
+    # there should be no overlap in the matrices
+    splits = {"train": data.train, "validation": data.validation, "test": data.test}
+    for a, b in [("train", "validation"), ("train", "test"), ("validation", "test")]:
+        if overlap_count(splits[a], splits[b]) != 0:
+            raise RuntimeError("Data splits are not pairwise disjoint")         
+
 
 
 
@@ -84,7 +113,16 @@ def extract_positive_interactions(matrix: csr_matrix, ) -> tuple[np.ndarray, np.
     Ensure zeros have been eliminated and duplicate coordinates summed before extraction.
     """
     # Implement the logic to extract positive interactions
-    raise NotImplementedError("extract_positive_interactions")
+    assert matrix.has_canonical_format, f"matrix has duplicates/unsorted indices"
+    assert not (matrix.data == 0).any(), f"matrix has explicit zeros"
+
+    coo = matrix.tocoo()
+    users = coo.row
+    artists = coo.col
+    play_counts = coo.data
+
+    return users, artists, play_counts
+
 
 
 def sample_negative_items(positive_users: np.ndarray, known_positive: csr_matrix, n_artists: int, negatives_per_positive: int, rng: np.random.Generator) -> np.ndarray:
