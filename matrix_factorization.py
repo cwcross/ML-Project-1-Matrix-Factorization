@@ -82,7 +82,8 @@ def validate(data: DatasetSplits) -> None:
     splits = {"train": data.train, "validation": data.validation, "test": data.test}
     for a, b in [("train", "validation"), ("train", "test"), ("validation", "test")]:
         if overlap_count(splits[a], splits[b]) != 0:
-            raise RuntimeError("Data splits are not pairwise disjoint")         
+            raise RuntimeError("Data splits are not pairwise disjoint")      
+    return   
 
 
 
@@ -140,7 +141,87 @@ def sample_negative_items(positive_users: np.ndarray, known_positive: csr_matrix
     Output: Integer array of shape (n_positive, negatives_per_positive) containing sampled artist indices.
     """
 
-    raise NotImplementedError("sample_negative_items")
+    if negatives_per_positive < 0:
+        raise ValueError("negatives_per_positive cannot be negative")
+
+    if n_artists < 0:
+        raise ValueError("n_artists cannot be negative")
+
+    if known_positive.shape[1] != n_artists:
+        raise ValueError("n_artists does not match known_positive shape")
+
+    # Ensure we are working with a clean CSR matrix
+    known = known_positive.tocsr(copy=True)
+    known.sum_duplicates()
+    known.eliminate_zeros()
+    known.sort_indices()
+
+    positive_users = np.asarray(positive_users, dtype=np.int64)
+
+    if positive_users.ndim != 1:
+        raise ValueError("positive_users must be a 1D array")
+
+    n_positive = len(positive_users)
+
+    # Prepare output array
+    negative_artists = np.empty(
+        (n_positive, negatives_per_positive),
+        dtype=np.int64
+    )
+
+    if n_positive == 0 or negatives_per_positive == 0:
+        return negative_artists
+
+    # Check that all user indices are valid
+    if np.any(positive_users < 0) or np.any(positive_users >= known.shape[0]):
+        raise IndexError("Invalid user index in positive_users")
+
+    # Sort users so we can process all interactions belonging
+    # to the same user together.
+    order = np.argsort(positive_users, kind="stable")
+    sorted_users = positive_users[order]
+
+    unique_users, starts, counts = np.unique(
+        sorted_users,
+        return_index=True,
+        return_counts=True
+    )
+
+    # Process each unique user
+    for user_idx, start, count in zip(unique_users, starts, counts):
+
+        # Retrieve artists already listened to by this user
+        row_start = known.indptr[user_idx]
+        row_end = known.indptr[user_idx + 1]
+
+        known_artists = known.indices[row_start:row_end]
+
+        # Create a mask identifying eligible negative artists
+        candidate_mask = np.ones(n_artists, dtype=bool)
+        candidate_mask[known_artists] = False
+
+        # Get indices of artists the user has NOT interacted with
+        candidates = np.flatnonzero(candidate_mask)
+
+        # Prevent infinite sampling when no negatives are available
+        if len(candidates) == 0:
+            raise ValueError(
+                f"User {user_idx} has interacted with every artist. "
+                "Cannot generate negative samples."
+            )
+
+        # Sample negatives with replacement
+        sampled = rng.choice(
+            candidates,
+            size=(count, negatives_per_positive),
+            replace=True
+        )
+
+        # Store samples in their original positions
+        negative_artists[order[start:start + count]] = sampled
+
+    return negative_artists
+
 
 @dataclass
 class TrainingBatch:
@@ -160,44 +241,75 @@ def iter_train_batches(train: csr_matrix, known_positive: csr_matrix, batch_size
     """
     raise NotImplementedError("iter_train_batches")
 
-def make_evaluation_examples(heldout:csr_matrix, known_positive: csr_matrix, negatives_per_positive: int, 
-                             rng: np.random.Generator) -> TrainingBatch:
-    """
-    Input: Validation or test CSR matrix; known-positive exclusion mask; fixed negative ratio; RNG.
 
-    Output: TrainingBatch containing held-out positives (target=1) and sampled negatives (target=0), with unit weights.
-    """
+def make_evaluation_examples(
+    heldout: csr_matrix,
+    known_positive: csr_matrix,
+    negatives_per_positive: int,
+    rng: np.random.Generator
+) -> TrainingBatch:
+
+    if heldout.shape != known_positive.shape:
+        raise ValueError("Matrix dimensions do not match")
+
     heldout = heldout.tocsr(copy=True)
     heldout.sum_duplicates()
     heldout.eliminate_zeros()
     heldout.sort_indices()
 
-    positive_users, positive_artists, player_counts = (extract_positive_interactions(heldout))
+    # Extract positive interactions
+    positive_users, positive_artists, play_counts = (
+        extract_positive_interactions(heldout)
+    )
 
     n_positive = len(positive_users)
 
-    negative_artists = np.empty((n_positive,negatives_per_positive),dtype=np.int64)
-    negative_users = np.repeat(positive_users, negatives_per_positive)
-    negative_artists = negative_users.flatten() #into 1d array
+    # Generate actual negative artist IDs
+    negative_artists = sample_negative_items(
+        positive_users,
+        known_positive,
+        heldout.shape[1],
+        negatives_per_positive,
+        rng
+    )
 
+    # Repeat each user for their negative samples
+    negative_users = np.repeat(
+        positive_users,
+        negatives_per_positive
+    )
 
-    users = np.concatenate([positive_users, negative_users])
-    artists = np.concatenate([positive_artists,negative_artists])
+    # Flatten the negative artist matrix
+    negative_artists = negative_artists.flatten()
 
-    targets = np.concatenate([np.ones(n_positive),np.zeros(len(negative_users))]).astype(np.float32)
+    # Combine positive and negative examples
+    users = np.concatenate([
+        positive_users,
+        negative_users
+    ])
 
-    weights = np.ones(len(users),dtype=np.float32)
+    artists = np.concatenate([
+        positive_artists,
+        negative_artists
+    ])
 
+    targets = np.concatenate([
+        np.ones(n_positive),
+        np.zeros(len(negative_users))
+    ]).astype(np.float32)
+
+    weights = np.ones(len(users), dtype=np.float32)
+
+    # Shuffle while keeping arrays aligned
     permutation = rng.permutation(len(users))
 
-    
-
     return TrainingBatch(
-        users = users[permutation],
-        artists = artists[permutation],
-        targets = targets[permutation],
-        weights = weights
+        users=users[permutation],
+        artists=artists[permutation],
+        targets=targets[permutation],
+        weights=weights[permutation]
     )
+
 
 
 
@@ -717,14 +829,35 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
 
     Output: Tuple of (MFModel, TrainingHistory) after training to convergence or early stopping.
     """
-    model = initialize_model(len(data.user_ids), len(data.artist_mbids), config.n_factors, config.seed)
+    n_users, n_artists = data.train.shape
+    model = initialize_model(n_users, n_artists, config.n_factors, config.seed)
     history = TrainingHistory([], [], [], [])
+    known_positive = (
+    data.train + data.validation + data.test
+    ).tocsr()
+
+    known_positive.sum_duplicates()
+    known_positive.eliminate_zeros()
+    known_positive.sort_indices()
+
+    known_positive.data = np.ones(
+        known_positive.nnz,
+        dtype=np.int8
+    )
     for epoch in range(config.epochs):
         rng = np.random.default_rng(config.seed + epoch)
         train_loss = train_one_epoch(model, data.train, config, rng)
         history.train_loss.append(train_loss)
 
-        validation_examples = make_evaluation_examples(data.validation, data.validation, config.negatives_per_positive, rng)
+        validation_examples = make_evaluation_examples(data.validation, known_positive, config.negatives_per_positive, rng)
+        print("User factor dimensions:", model.user_factors.shape)
+        print("Artist factor dimensions:", model.artist_factors.shape)
+
+        print("Validation users:", validation_examples.users.min(),
+            validation_examples.users.max())
+
+        print("Validation artists:", validation_examples.artists.min(),
+            validation_examples.artists.max())
         validation_loss = evaluate_binary_loss(model, validation_examples, config.regularization)
         history.validation_loss.append(validation_loss)
 
@@ -788,8 +921,8 @@ def main():
     start_time = time()
     data = load_lastfm_dataset()
     config = TrainingConfig(
-        n_factors=16,
-        epochs=20,
+        n_factors=2,
+        epochs=1,
         learning_rate=0.25,
         regularization=0.01,
         negatives_per_positive=3,

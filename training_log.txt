@@ -40,3 +40,10 @@ Final training loss: 0.0007
 
 
 
+Config: TrainingConfig(n_factors=2, epochs=1, learning_rate=0.25, regularization=0.01, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 57.05 seconds for 1 epochs. 57.05 seconds per epoch
+Training time: 0.95 minutes for 1 epochs. 0.95 minutes per epoch
+Final training loss: 0.5988
+Training loss history: [0.598799840924167]Validation loss history: [0.7968554839700254]
+
+
