@@ -101,8 +101,72 @@ def build_known_positive_mask(data: DatasetSplits) -> csr_matrix:
     Returns:
     csr_matrix: The known positive mask.
     """
-    # Implement the logic to build the known positive mask
-    raise NotImplementedError("build_known_positive_mask")
+    splits = [data.train, data.validation, data.test]
+
+    # Check CSR format
+    for matrix in splits:
+        if not isinstance(matrix, csr_matrix):
+            raise TypeError("All splits must be CSR matrices")
+
+    # Check dimensions
+    shapes = [matrix.shape for matrix in splits]
+
+    if len(set(shapes)) != 1:
+        raise ValueError("Dataset splits have different shapes")
+
+    n_users, n_artists = data.train.shape
+
+    if n_users != len(data.user_ids):
+        raise ValueError("User mapping does not match matrix rows")
+
+    if n_artists != len(data.artist_mbids):
+        raise ValueError("Artist MBID mapping does not match matrix columns")
+
+    if n_artists != len(data.artist_names):
+        raise ValueError("Artist name mapping does not match matrix columns")
+
+    processed = []
+
+    for matrix in splits:
+        matrix = matrix.copy()
+        matrix.sum_duplicates()
+        matrix.eliminate_zeros()
+        matrix.sort_indices()
+
+        if not np.all(np.isfinite(matrix.data)):
+            raise ValueError("Interaction counts must be finite")
+
+        if np.any(matrix.data < 0):
+            raise ValueError("Interaction counts cannot be negative")
+
+        processed.append(matrix)
+
+    # Check that splits are disjoint
+    for i in range(len(processed)):
+        for j in range(i + 1, len(processed)):
+            if overlap_count(processed[i], processed[j]) != 0:
+                raise ValueError("Dataset splits overlap")
+
+    # Check warm-start coverage
+    train = processed[0]
+
+    user_coverage = np.diff(train.indptr) > 0
+    artist_coverage = np.asarray(train.getnnz(axis=0)).ravel() > 0
+
+    if not np.all(user_coverage):
+        raise ValueError("Some users have no training interactions")
+
+    if not np.all(artist_coverage):
+        raise ValueError("Some artists have no training interactions")
+
+    # Union of all known positives
+    known_positive = processed[0] + processed[1] + processed[2]
+
+    known_positive.data[:] = 1
+    known_positive = known_positive.tocsr()
+    known_positive.sort_indices()
+
+    return known_positive
 
 
 
@@ -139,8 +203,33 @@ def sample_negative_items(positive_users: np.ndarray, known_positive: csr_matrix
 
     Output: Integer array of shape (n_positive, negatives_per_positive) containing sampled artist indices.
     """
+    positive_users = np.asarray(positive_users, dtype=np.int64)
+    if positive_users.ndim != 1:
+        raise ValueError("positive_users must be a 1-D array")
+    if negatives_per_positive < 1:
+        raise ValueError("negatives_per_positive must be >= 1")
+    if n_artists <= 0:
+        raise ValueError("n_artists must be positive")
 
-    raise NotImplementedError("sample_negative_items")
+    n_positive = len(positive_users)
+    negatives = np.empty((n_positive, negatives_per_positive), dtype=np.int64)
+
+    all_artists = np.arange(n_artists, dtype=np.int64)
+
+    for i, user_idx in enumerate(positive_users):
+        known_artists = known_positive.getrow(int(user_idx)).indices
+        if known_artists.size == n_artists:
+            raise ValueError(f"User {user_idx} has no valid negatives because all artists are already marked as known positive")
+
+        candidate_artists = np.setdiff1d(all_artists, known_artists, assume_unique=True)
+        if candidate_artists.size == 0:
+            raise ValueError(f"User {user_idx} has no candidate negatives available")
+
+        sample_size = min(negatives_per_positive, candidate_artists.size)
+        replace = candidate_artists.size < negatives_per_positive
+        negatives[i] = rng.choice(candidate_artists, size=negatives_per_positive, replace=replace)
+
+    return negatives
 
 @dataclass
 class TrainingBatch:
@@ -158,7 +247,56 @@ def iter_train_batches(train: csr_matrix, known_positive: csr_matrix, batch_size
     Output: Iterator yielding TrainingBatch instances. Each positive anchor contributes one target-1 row and negatives_per_positive target-0 rows. 
     A batch can therefore contain up to batch_size * (1 + negatives_per_positive) examples.
     """
-    raise NotImplementedError("iter_train_batches")
+    if batch_size < 1:
+        raise ValueError("batch_size must be >= 1")
+    if negatives_per_positive < 1:
+        raise ValueError("negatives_per_positive must be >= 1")
+    if not np.isfinite(alpha) or alpha < 0:
+        raise ValueError("alpha must be finite and non-negative")
+    if train.shape != known_positive.shape:
+        raise ValueError("train and known_positive must have the same shape")
+
+    train = train.tocsr(copy=True)
+    train.sum_duplicates()
+    train.eliminate_zeros()
+    train.sort_indices()
+    positive_users, positive_artists, play_counts = extract_positive_interactions(train)
+
+    order = rng.permutation(len(positive_users))
+    positive_users = positive_users[order]
+    positive_artists = positive_artists[order]
+    play_counts = play_counts[order]
+
+    for start in range(0, len(positive_users), batch_size):
+        end = start + batch_size
+        batch_positive_users = positive_users[start:end]
+        batch_positive_artists = positive_artists[start:end]
+        batch_play_counts = play_counts[start:end]
+
+        negative_artists = sample_negative_items(
+            batch_positive_users, known_positive, train.shape[1], negatives_per_positive, rng
+        ).reshape(-1)
+        negative_users = np.repeat(batch_positive_users, negatives_per_positive)
+
+        users = np.concatenate((batch_positive_users, negative_users))
+        artists = np.concatenate((batch_positive_artists, negative_artists))
+        targets = np.concatenate((
+            np.ones(len(batch_positive_users), dtype=np.float32),
+            np.zeros(len(negative_users), dtype=np.float32),
+        ))
+        positive_weights = 1.0 + alpha * np.log1p(batch_play_counts.astype(np.float64))
+        weights = np.concatenate((
+            positive_weights.astype(np.float32),
+            np.ones(len(negative_users), dtype=np.float32),
+        ))
+
+        batch_order = rng.permutation(len(users))
+        yield TrainingBatch(
+            users=users[batch_order],
+            artists=artists[batch_order],
+            targets=targets[batch_order],
+            weights=weights[batch_order],
+        )
 
 def make_evaluation_examples(heldout:csr_matrix, known_positive: csr_matrix, negatives_per_positive: int, 
                              rng: np.random.Generator) -> TrainingBatch:
@@ -282,6 +420,8 @@ def predict_all_artists(model: MFModel, user_idx: int) -> np.ndarray:
 
     Output: 1-D array of probabilities for all artists, shape (n_artists,).  
     """
+    if user_idx < 0 or user_idx >= len(model.user_factors):
+        raise ValueError("Invalid user index")
     user_vector = model.user_factors[user_idx]
     scores = model.artist_factors @ user_vector
     probabilities = sigmoid(scores)
