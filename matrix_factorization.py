@@ -16,7 +16,8 @@ class DatasetSplits:
 
 
 
-def load_dataset(file_path: str | Path):
+
+def load_lastfm_dataset() -> DatasetSplits:
     """
     Function to import data from a given file path.
     
@@ -334,7 +335,39 @@ class TrainingConfig:
     early_stopping_patience: int
 
 
-def train_one_epoch(model: MFModel, train: csr_matrix, known_positive: csr_matrix, config: TrainingConfig, rng: np.random.Generator) -> float:
+
+def generate_shuffled_batches(train: csr_matrix, batch_size: int, rng: np.random.Generator, config: TrainingConfig) -> list[tuple[np.ndarray, np.ndarray]]:
+    """
+    Input: Training CSR matrix; number of positive anchors per batch; RNG; Training configuration.
+
+    Output: List of tuples (users, artists) representing shuffled batches of positive and negative interactions based on negative to positive ratio.
+    """
+    negatives_per_positive = config.negatives_per_positive
+
+    users, artists, _ = extract_positive_interactions(train)
+    indices = np.arange(len(users))
+    rng.shuffle(indices)
+
+    shuffled_users = users[indices]
+    shuffled_artists = artists[indices]
+
+    # Generate batches of positive anchors and their corresponding negative samples
+
+    batches = []
+    for i in range(0, len(shuffled_users), batch_size):
+        #TODO Can someone look at this I'm getting red lines and idk why. Also Owen, am I calling your function correctly?
+        negative_samples = sample_negative_items(shuffled_users[i:i + batch_size], train, train.shape[1], negatives_per_positive, rng)
+
+        #TODO add in the negative samples to the batch.
+        batch = []
+        batch_users = shuffled_users[i:i + batch_size]
+        batch_artists = shuffled_artists[i:i + batch_size]
+        batch.append((batch_users, batch_artists))
+        batches.append(batch)
+
+    return batches
+
+def train_one_epoch(model: MFModel, train: csr_matrix, config: TrainingConfig, rng: np.random.Generator) -> float:
     """
     Input: Mutable model; training CSR matrix; negative-exclusion mask; validated training configuration; RNG.
 
@@ -344,10 +377,27 @@ def train_one_epoch(model: MFModel, train: csr_matrix, known_positive: csr_matri
     and return the epoch metric.
     """
     # Generate shuffled batches of training examples
+    batches = generate_shuffled_batches(train, config.batch_size, rng, config)
 
+
+    # Process each batch and update the model using SGD
+    losses = []
+    num_batches = len(batches)
+    for batch in batches:
+        for batch_users, batch_artists in batch:
+            #TODO: Add the negative samples to the batch
+            targets = np.ones(len(batch_users))  # Assuming all positive samples for now
+            weights = np.ones(len(batch_users))  # Assuming unit weights for now
+
+            for user_idx, artist_idx, target, weight in zip(batch_users, batch_artists, targets, weights):
+                sgd_update(model, user_idx, artist_idx, target, weight, config.learning_rate, config.regularization)
+                average_loss = calculate_training_loss(model, TrainingBatch(batch_users, batch_artists, targets, weights), config.regularization)
+                losses.append(average_loss)
+
+
+    # Calculate the average training loss for this epoch
+    return np.sum(losses) / num_batches if num_batches > 0 else 0.0
    
-
-    raise NotImplementedError("train_one_epoch")
 
 
 ################
@@ -444,15 +494,49 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
 
     Output: Tuple of (MFModel, TrainingHistory) after training to convergence or early stopping.
     """
-    raise NotImplementedError("train_model")
+    model = initialize_model(len(data.user_ids), len(data.artist_mbids), config.n_factors, config.seed)
+    history = TrainingHistory([], [], [], [])
+    for epoch in range(config.epochs):
+        rng = np.random.default_rng(config.seed + epoch)
+        train_loss = train_one_epoch(model, data.train, config, rng)
+        history.train_loss.append(train_loss)
+
+        validation_examples = make_evaluation_examples(data.validation, build_known_positive_mask(data), config.negatives_per_positive, rng)
+        validation_loss = evaluate_binary_loss(model, validation_examples)
+        history.validation_loss.append(validation_loss)
+
+        ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
+        history.validation_recall_at_k.append(ranking_metrics.get('recall_at_k', 0.0))
+        history.validation_ndcg_at_k.append(ranking_metrics.get('ndcg_at_k', 0.0))
+
+        # Early stopping logic can be added here based on validation metrics
+
+    return model, history
 
 
 def main():
-    pass
+    """
+    Main function to load data, train the model, and evaluate it.
+    """
+    data = load_lastfm_dataset()
+    config = TrainingConfig(
+        n_factors=16,
+        epochs=50,
+        learning_rate=0.03,
+        regularization=0.01,
+        negatives_per_positive=3,
+        positive_weight_alpha=0.5,
+        batch_size=1024,  # positive anchors per batch
+        seed=1235,
+        top_k=10,
+        early_stopping_patience=5,
+    )
+    model, history = train_model(data, config)
+    # Further evaluation and saving of the model can be done here
 
 
 """
-Default Configs:
+Starting Config:
 TrainingConfig(
     n_factors=16,
     epochs=50,
