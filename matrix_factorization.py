@@ -163,8 +163,17 @@ def make_evaluation_examples(heldout:csr_matrix, known_positive: csr_matrix, neg
 
     Output: TrainingBatch containing held-out positives (target=1) and sampled negatives (target=0), with unit weights.
     """
-    raise NotImplementedError("make_evaluation_examples")
+    if negatives_per_positive < 0:
+        raise ValueError("negatives_per_positive cannot be negative")
 
+    if known_positive.shape[1] != heldout.shape[1]:
+        raise ValueError("n_artists does not match heldout shape")
+
+    # Work with a clean CSR copy
+    known = known_positive.tocsr(copy=True)
+    known.sum_duplicates()
+    known.eliminate_zeros()
+    known.sort_indices()
 
 ######
 # Initialize Model and Make Predictions
@@ -671,7 +680,7 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         train_loss = train_one_epoch(model, data.train, config, rng)
         history.train_loss.append(train_loss)
 
-        validation_examples = make_evaluation_examples(data.validation, build_known_positive_mask(data), config.negatives_per_positive, rng)
+        validation_examples = make_evaluation_examples(data.validation, data, config.negatives_per_positive, rng)
         validation_loss = evaluate_binary_loss(model, validation_examples)
         history.validation_loss.append(validation_loss)
 
@@ -736,11 +745,11 @@ def main():
     data = load_lastfm_dataset()
     config = TrainingConfig(
         n_factors=16,
-        epochs=50,
-        learning_rate=0.05,
-        regularization=0.1,
+        epochs=20,
+        learning_rate=0.25,
+        regularization=0.01,
         negatives_per_positive=3,
-        positive_weight_alpha=0.5,
+        positive_weight_alpha=.5,
         batch_size=1024,  # positive anchors per batch
         seed=1235,
         top_k=10,
@@ -758,6 +767,8 @@ def main():
     current_run += f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch\n"
     current_run += f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch\n"
     current_run += f"Final training loss: {history.train_loss[-1]:.4f}\n"
+    current_run += f"Training loss history: {history.train_loss}"
+    current_run += f"Validation loss history: {history.validation_loss}"
     print(current_run)
 
     with open("training_log.txt", "a") as f:
