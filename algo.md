@@ -186,10 +186,11 @@ $$
 ### Updates
 
 We loop over the examples in the data. For each example $(u, i, y, w)$ from arrays $(\text{users}, \text{artists}, W, Y)$:
- 
+
 1. Record score.
 
-    > This captures
+   > This captures
+   >
 
 $$
 s_{ui} = p_u^\top q_i = \sum_{f=1}^kp_{uf}q_{if}, \qquad \hat p = \sigma(s)

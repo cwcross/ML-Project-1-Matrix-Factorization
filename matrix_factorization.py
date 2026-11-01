@@ -15,8 +15,6 @@ class DatasetSplits:
     artist_names: np.ndarray
 
 
-
-
 def load_lastfm_dataset() -> DatasetSplits:
     """
     Function to import data from a given file path.
@@ -34,9 +32,9 @@ def load_lastfm_dataset() -> DatasetSplits:
         train=load_npz(data_dir / "train.npz"),
         validation=load_npz(data_dir / "validation.npz"),
         test=load_npz(data_dir / "test.npz"),
-        user_ids=np.load(data_dir / "user_sha1_mappings.npy"),
-        artist_mbids=np.load(data_dir / "user_mbid_mappings.npy"),
-        artist_names=np.load(data_dir / "artist_mappings.npy")
+        user_ids=np.load(data_dir / "user_sha1_mappings.npy", allow_pickle=True),
+        artist_mbids=np.load(data_dir / "artist_mbid_mappings.npy", allow_pickle=True),
+        artist_names=np.load(data_dir / "artist_mappings.npy", allow_pickle=True)
     )
     return dataset
 
@@ -247,7 +245,7 @@ def binary_cross_entropy_loss(predicted_probability: float, target: float) -> fl
 
     Output: Scalar weighted BCE loss.
     """
-    return (target * np.log(predicted_probability) + (1 - target) * np.log(1 - predicted_probability))
+    return -(target * np.log(predicted_probability) + (1 - target) * np.log(1 - predicted_probability))
 
 
 def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, target: float, weight: float,
@@ -258,7 +256,7 @@ def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, targ
     Output: Scalar objective value for that one pair.
     """
     score = np.dot(user_vector, artist_vector)
-    predicted_probability:float = sigmoid(np.array(score))[0]
+    predicted_probability:float = sigmoid(np.array(score))
     loss = binary_cross_entropy_loss(predicted_probability, target)
 
     #TODO SOMEONE DOUBLE CHECK ME HERE I DIDNT TAKE LINEAR ALGEBRA!!!!!
@@ -288,7 +286,7 @@ def sgd_update(model: MFModel, user_idx: int, artist_idx: int, target: float, we
     old_artist_vector = model.artist_factors[artist_idx].copy()
 
     score = np.dot(old_user_vector, old_artist_vector)
-    predicted_probability = sigmoid(np.array(score))[0]
+    predicted_probability = sigmoid(np.array(score))
     score_gradient_weighted_error = calculate_score_gradient(predicted_probability, target, weight)
 
     user_gradient = score_gradient_weighted_error * old_artist_vector + regularization * old_user_vector
@@ -311,10 +309,12 @@ def calculate_training_loss(model: MFModel, examples: TrainingBatch, regularizat
     """
     total_loss = 0.0
     for user_idx, artist_idx, target, weight in zip(examples.users, examples.artists, examples.targets, examples.weights):
-        user_vector = model.user_factors[user_idx]
-        artist_vector = model.artist_factors[artist_idx]
-        loss = calculate_pair_loss(user_vector, artist_vector, target, weight, regularization)
-        total_loss += loss
+        if user_idx < model.user_factors.shape[0] and artist_idx < model.artist_factors.shape[0]:
+            
+            user_vector = model.user_factors[user_idx]
+            artist_vector = model.artist_factors[artist_idx]
+            loss = calculate_pair_loss(user_vector, artist_vector, target, weight, regularization)
+            total_loss += loss
 
     mean_loss = total_loss / len(examples.users)
     return mean_loss
@@ -356,7 +356,7 @@ def generate_shuffled_batches(train: csr_matrix, batch_size: int, rng: np.random
     batches = []
     for i in range(0, len(shuffled_users), batch_size):
         #TODO Can someone look at this I'm getting red lines and idk why. Also Owen, am I calling your function correctly?
-        negative_samples = sample_negative_items(shuffled_users[i:i + batch_size], train, train.shape[1], negatives_per_positive, rng)
+        # negative_samples = sample_negative_items(shuffled_users[i:i + batch_size], train, train.shape[1], negatives_per_positive, rng)
 
         #TODO add in the negative samples to the batch.
         batch = []
@@ -376,27 +376,38 @@ def train_one_epoch(model: MFModel, train: csr_matrix, config: TrainingConfig, r
     Generate shuffled batches, process each labelled example with sequential SGD updates, accumulate a consistently defined loss, 
     and return the epoch metric.
     """
-    # Generate shuffled batches of training examples
     batches = generate_shuffled_batches(train, config.batch_size, rng, config)
 
+    total_loss = 0.0
+    total_examples = 0
 
-    # Process each batch and update the model using SGD
-    losses = []
-    num_batches = len(batches)
     for batch in batches:
         for batch_users, batch_artists in batch:
-            #TODO: Add the negative samples to the batch
-            targets = np.ones(len(batch_users))  # Assuming all positive samples for now
-            weights = np.ones(len(batch_users))  # Assuming unit weights for now
 
-            for user_idx, artist_idx, target, weight in zip(batch_users, batch_artists, targets, weights):
-                sgd_update(model, user_idx, artist_idx, target, weight, config.learning_rate, config.regularization)
-                average_loss = calculate_training_loss(model, TrainingBatch(batch_users, batch_artists, targets, weights), config.regularization)
-                losses.append(average_loss)
+            # Currently only positive samples are implemented
+            targets = np.ones(len(batch_users), dtype=np.float32)
+            weights = np.ones(len(batch_users), dtype=np.float32)
 
+            for user_idx, artist_idx, target, weight in zip(
+                batch_users, batch_artists, targets, weights
+            ):
+                if user_idx < model.user_factors.shape[0] and artist_idx < model.artist_factors.shape[0]:
 
-    # Calculate the average training loss for this epoch
-    return np.sum(losses) / num_batches if num_batches > 0 else 0.0
+                    # sgd_update returns the individual example's loss
+                    loss = sgd_update(
+                        model,
+                        user_idx,
+                        artist_idx,
+                        target,
+                        weight,
+                        config.learning_rate,
+                        config.regularization
+                    )
+
+                    total_loss += loss
+                    total_examples += 1
+
+    return total_loss / total_examples if total_examples > 0 else 0.0
    
 
 
@@ -459,8 +470,7 @@ def recommend_for_user(model: MFModel, user_idx: int, train: csr_matrix, artist_
 
     Output: Up to k Recommendation objects sorted by descending raw score.
     """
-    raise NotImplementedError("recommend_for_user")
-
+    pass
 
 def save_model(model: MFModel, config: TrainingConfig, output_path: str | Path) -> None:
     """
@@ -501,27 +511,29 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         train_loss = train_one_epoch(model, data.train, config, rng)
         history.train_loss.append(train_loss)
 
-        validation_examples = make_evaluation_examples(data.validation, build_known_positive_mask(data), config.negatives_per_positive, rng)
-        validation_loss = evaluate_binary_loss(model, validation_examples)
-        history.validation_loss.append(validation_loss)
+        # validation_examples = make_evaluation_examples(data.validation, build_known_positive_mask(data), config.negatives_per_positive, rng)
+        # validation_loss = evaluate_binary_loss(model, validation_examples)
+        # history.validation_loss.append(validation_loss)
 
-        ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
-        history.validation_recall_at_k.append(ranking_metrics.get('recall_at_k', 0.0))
-        history.validation_ndcg_at_k.append(ranking_metrics.get('ndcg_at_k', 0.0))
+        # ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
+        # history.validation_recall_at_k.append(ranking_metrics.get('recall_at_k', 0.0))
+        # history.validation_ndcg_at_k.append(ranking_metrics.get('ndcg_at_k', 0.0))
 
         # Early stopping logic can be added here based on validation metrics
 
     return model, history
 
-
+from time import time
 def main():
     """
     Main function to load data, train the model, and evaluate it.
     """
+    # log time difference between start and end of training
+    start_time = time()
     data = load_lastfm_dataset()
     config = TrainingConfig(
         n_factors=16,
-        epochs=50,
+        epochs=1,
         learning_rate=0.03,
         regularization=0.01,
         negatives_per_positive=3,
@@ -532,8 +544,13 @@ def main():
         early_stopping_patience=5,
     )
     model, history = train_model(data, config)
+    print("Training completed.")
+    print("Training Loss History:", history.train_loss)
     # Further evaluation and saving of the model can be done here
-
+    end_time = time()
+    print(f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch")
+    print(f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch")
+main()
 
 """
 Starting Config:
