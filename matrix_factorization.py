@@ -891,6 +891,7 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         # print("Validation artists:", validation_examples.artists.min(),
         #     validation_examples.artists.max())
         validation_loss = evaluate_binary_loss(model, validation_examples, config.regularization)
+        print(f"Validaiton loss for this epoch: {validation_loss}")
         history.validation_loss.append(validation_loss)
 
         # ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
@@ -953,10 +954,10 @@ def main():
     start_time = time()
     data = load_lastfm_dataset()
     config = TrainingConfig(
-        n_factors=12,
+        n_factors=16,
         epochs=15,
-        learning_rate=0.18,
-        regularization=0.1,
+        learning_rate=0.03,
+        regularization=0.001,
         negatives_per_positive=1,
         positive_weight_alpha=.5,
         batch_size=1024,  # positive anchors per batch
