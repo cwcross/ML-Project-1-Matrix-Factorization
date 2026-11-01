@@ -163,8 +163,17 @@ def make_evaluation_examples(heldout:csr_matrix, known_positive: csr_matrix, neg
 
     Output: TrainingBatch containing held-out positives (target=1) and sampled negatives (target=0), with unit weights.
     """
-    raise NotImplementedError("make_evaluation_examples")
+    if negatives_per_positive < 0:
+        raise ValueError("negatives_per_positive cannot be negative")
 
+    if known_positive.shape[1] != heldout.shape[1]:
+        raise ValueError("n_artists does not match heldout shape")
+
+    # Work with a clean CSR copy
+    known = known_positive.tocsr(copy=True)
+    known.sum_duplicates()
+    known.eliminate_zeros()
+    known.sort_indices()
 
 ######
 # Initialize Model and Make Predictions
