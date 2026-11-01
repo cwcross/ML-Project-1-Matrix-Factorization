@@ -416,7 +416,7 @@ def train_one_epoch(model: MFModel, train: csr_matrix, config: TrainingConfig, r
 # Validation and Testing
 ################
 
-def evaluate_binary_loss(model: MFModel, examples: TrainingBatch, regularization: float = 0.0) -> float:
+def evaluate_binary_loss(model: MFModel, examples: TrainingBatch, regularization: float) -> float:
     """
     Input: Model and a fixed batch of labelled examples.
 
@@ -520,13 +520,13 @@ def evaluate_ranking(model: MFModel, train: csr_matrix, heldout: csr_matrix, k:i
     }
 
 
-def evaluate_model(model: MFModel, data: DatasetSplits, validation_examples: TrainingBatch, k:int) -> dict[str, float]:
+def evaluate_model(model: MFModel, data: DatasetSplits, validation_examples: TrainingBatch, k:int, regularization: float) -> dict[str, float]:
     """
     Input: Model, complete aligned data splits, fixed validation examples, ranking cutoff.
 
     Output: Dictionary with validation log loss, optionally others like validation accuracy, Recall@K, and NDCG@K. U choose, Sam.
     """
-    loss = evaluate_binary_loss(model, validation_examples, regularization=0.0)
+    loss = evaluate_binary_loss(model, validation_examples, regularization)
     accuracy = evaluate_accuracy(model, validation_examples)
     ranking = evaluate_ranking(model, data.train, data.validation, k)
 
