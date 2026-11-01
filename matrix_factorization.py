@@ -53,9 +53,13 @@ def overlap_count(A: csr_matrix, B: csr_matrix) -> int:
     # Check by multiplying the matrices
     # Only left with a nonzero entry if matching locations are nonzero
     # Simplify multiplication by converting to ones in small ints
-    A.data = np.ones_like(A.data, dtype=np.int8)
-    B.data = np.ones_like(B.data, dtype=np.int8)
-    return A.multiply(B).nnz
+    A_binary = A.copy()
+    B_binary = B.copy()
+
+    A_binary.data = np.ones_like(A_binary.data, dtype=np.int8)
+    B_binary.data = np.ones_like(B_binary.data, dtype=np.int8)
+
+    return A_binary.multiply(B_binary).nnz
 
 
 def validate(data: DatasetSplits) -> None:
@@ -218,8 +222,10 @@ def initialize_model(n_users: int, n_artists: int, n_factors: int, seed: int) ->
     Initializes small random values using np.random.default_rng(seed). Uses a reproducible seed.
     """
 
-    user_factors = np.random.default_rng(seed).normal(loc=0.0, scale=0.01, size=(n_users, n_factors)).astype(np.float32)
-    artist_factors = np.random.default_rng(seed).normal(loc=0.0, scale=0.01, size=(n_artists, n_factors)).astype(np.float32)
+    rng = np.random.default_rng(seed)
+    
+    user_factors = rng.normal(loc=0.0, scale=0.01, size=(n_users, n_factors)).astype(np.float32)
+    artist_factors = rng.normal(loc=0.0, scale=0.01, size=(n_artists, n_factors)).astype(np.float32)
     return MFModel(user_factors=user_factors, artist_factors=artist_factors)
 
 
@@ -238,13 +244,25 @@ def predict_scores(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np
 
     Output: 1-D array of raw dot-product scores, shape (n_pairs,).  
     """
-    user_indeces = np.where(users < model.user_factors.shape[0])
-    artist_indeces = np.where(artists < model.artist_factors.shape[0])
-    user_vectors = model.user_factors[user_indeces]
-    artist_vectors = model.artist_factors[artist_indeces]
+    users = np.asarray(users)
+    artists = np.asarray(artists)
 
-    scores = np.sum(user_vectors * artist_vectors, axis=1)
-    return scores
+    if users.ndim != 1 or artists.ndim != 1:
+        raise ValueError("User and artist arrays must be 1-D")
+
+    if len(users) != len(artists):
+        raise ValueError("User and artist arrays must have equal lengths")
+
+    if np.any(users < 0) or np.any(users >= len(model.user_factors)):
+        raise ValueError("Invalid user indices")
+
+    if np.any(artists < 0) or np.any(artists >= len(model.artist_factors)):
+        raise ValueError("Invalid artist indices")
+
+    user_vectors = model.user_factors[users]
+    artist_vectors = model.artist_factors[artists]
+
+    return np.sum(user_vectors * artist_vectors, axis=1)
 
 
 def predict_probabilities(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np.ndarray:
@@ -719,17 +737,17 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
     return model, history
 
 def train_different_parameters():
-    rates = {0.05, 0.2, 0.5}
-    regularizations = {0.01, 0.1}
-    batch_sizes = {512, 1024}
+    rates = [0.05, 0.2, 0.5]
+    regularizations = [0.01, 0.1]
+    batch_sizes = [512, 1024]
     data = load_lastfm_dataset()
 
     for rate in rates:
-        learn = rates[rate]
+        learn = rate
         for regularization in regularizations:
-            reg = regularizations[regularization]
+            reg = regularization
             for batch_size in batch_sizes:
-                batch = batch_sizes[batch_size]
+                batch = batch_size
                 start_time = time()
                 config = TrainingConfig(
                     n_factors=16,
