@@ -407,6 +407,7 @@ def train_one_epoch(model: MFModel, train: csr_matrix, config: TrainingConfig, r
                     total_loss += loss
                     total_examples += 1
 
+    print(f"Loss for this epoch: {total_loss / total_examples if total_examples > 0 else 0.0}")
     return total_loss / total_examples if total_examples > 0 else 0.0
    
 
@@ -533,9 +534,9 @@ def main():
     data = load_lastfm_dataset()
     config = TrainingConfig(
         n_factors=16,
-        epochs=1,
-        learning_rate=0.03,
-        regularization=0.01,
+        epochs=10,
+        learning_rate=0.01,
+        regularization=0.1,
         negatives_per_positive=3,
         positive_weight_alpha=0.5,
         batch_size=1024,  # positive anchors per batch
