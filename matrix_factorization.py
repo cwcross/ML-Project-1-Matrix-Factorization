@@ -102,8 +102,72 @@ def build_known_positive_mask(data: DatasetSplits) -> csr_matrix:
     Returns:
     csr_matrix: The known positive mask.
     """
-    # Implement the logic to build the known positive mask
-    raise NotImplementedError("build_known_positive_mask")
+    splits = [data.train, data.validation, data.test]
+
+    # Check CSR format
+    for matrix in splits:
+        if not isinstance(matrix, csr_matrix):
+            raise TypeError("All splits must be CSR matrices")
+
+    # Check dimensions
+    shapes = [matrix.shape for matrix in splits]
+
+    if len(set(shapes)) != 1:
+        raise ValueError("Dataset splits have different shapes")
+
+    n_users, n_artists = data.train.shape
+
+    if n_users != len(data.user_ids):
+        raise ValueError("User mapping does not match matrix rows")
+
+    if n_artists != len(data.artist_mbids):
+        raise ValueError("Artist MBID mapping does not match matrix columns")
+
+    if n_artists != len(data.artist_names):
+        raise ValueError("Artist name mapping does not match matrix columns")
+
+    processed = []
+
+    for matrix in splits:
+        matrix = matrix.copy()
+        matrix.sum_duplicates()
+        matrix.eliminate_zeros()
+        matrix.sort_indices()
+
+        if not np.all(np.isfinite(matrix.data)):
+            raise ValueError("Interaction counts must be finite")
+
+        if np.any(matrix.data < 0):
+            raise ValueError("Interaction counts cannot be negative")
+
+        processed.append(matrix)
+
+    # Check that splits are disjoint
+    for i in range(len(processed)):
+        for j in range(i + 1, len(processed)):
+            if overlap_count(processed[i], processed[j]) != 0:
+                raise ValueError("Dataset splits overlap")
+
+    # Check warm-start coverage
+    train = processed[0]
+
+    user_coverage = np.diff(train.indptr) > 0
+    artist_coverage = np.asarray(train.getnnz(axis=0)).ravel() > 0
+
+    if not np.all(user_coverage):
+        raise ValueError("Some users have no training interactions")
+
+    if not np.all(artist_coverage):
+        raise ValueError("Some artists have no training interactions")
+
+    # Union of all known positives
+    known_positive = processed[0] + processed[1] + processed[2]
+
+    known_positive.data[:] = 1
+    known_positive = known_positive.tocsr()
+    known_positive.sort_indices()
+
+    return known_positive
 
 
 
@@ -394,6 +458,8 @@ def predict_all_artists(model: MFModel, user_idx: int) -> np.ndarray:
 
     Output: 1-D array of probabilities for all artists, shape (n_artists,).  
     """
+    if user_idx < 0 or user_idx >= len(model.user_factors):
+        raise ValueError("Invalid user index")
     user_vector = model.user_factors[user_idx]
     scores = model.artist_factors @ user_vector
     probabilities = sigmoid(scores)
