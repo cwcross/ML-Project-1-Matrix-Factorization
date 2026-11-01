@@ -195,7 +195,7 @@ def sigmoid(scores: np.ndarray) -> np.ndarray:
     """
     pretty self explanatory, eh?
     """
-
+    scores = np.clip(scores, -500, 500)
     return (1 / (1 + np.exp(-scores)))
 
 
@@ -245,6 +245,7 @@ def binary_cross_entropy_loss(predicted_probability: float, target: float) -> fl
 
     Output: Scalar weighted BCE loss.
     """
+    predicted_probability = np.clip(predicted_probability, 1e-7, 1.0 - 1e-7)
     return float(-(target * np.log(predicted_probability) + (1 - target) * np.log(1 - predicted_probability)))
 
 
@@ -558,7 +559,43 @@ def recommend_for_user(model: MFModel, user_idx: int, train: csr_matrix, artist_
 
     Output: Up to k Recommendation objects sorted by descending raw score.
     """
-    pass
+    if user_idx < 0 or user_idx >= model.user_factors.shape[0]:
+        raise ValueError("Invalid user index")
+
+    if k <= 0:
+        return []
+
+    n_artists = model.artist_factors.shape[0]
+
+    if len(artist_mbids) != n_artists or len(artist_names) != n_artists:
+        raise ValueError("Artists don't match model dimensions")
+
+    # Predict scores for all artists
+    scores = predict_all_artists(model, user_idx)
+
+    # Exclude previously listened-to artists
+    seen_artists = train.getrow(user_idx).indices
+
+    scores = scores.copy()
+    scores[seen_artists] = -np.inf
+
+    # Get top K artists
+    top_indices = np.argsort(scores)[::-1]
+    top_indices = top_indices[np.isfinite(scores[top_indices])][:k]
+
+    recommendations = []
+
+    for artist_idx in top_indices:
+        recommendations.append(
+            Recommendation(
+                artist_idx=int(artist_idx),
+                artist_mbid=str(artist_mbids[artist_idx]),
+                artist_name=str(artist_names[artist_idx]),
+                score=float(scores[artist_idx])
+            )
+        )
+
+    return recommendations
 
 def save_model(model: MFModel, config: TrainingConfig, output_path: str | Path) -> None:
     """
@@ -566,7 +603,23 @@ def save_model(model: MFModel, config: TrainingConfig, output_path: str | Path) 
 
     Output: None. Saves model and config to disk.
     """
-    raise NotImplementedError("save_model")
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    np.savez(
+        output_path / "model.npz",
+        user_factors=model.user_factors,
+        artist_factors=model.artist_factors
+    )
+
+    np.savez(
+        output_path / "config.npz",
+        **{
+            field: getattr(config, field)
+            for field in config.__dataclass_fields__
+        }
+    )
+
 
 
 def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig]: 
@@ -575,7 +628,26 @@ def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig]:
 
     Output: Tuple of (MFModel, TrainingConfig) loaded from disk.
     """
-    raise NotImplementedError("load_model")
+    input_path = Path(input_path)
+
+    model_data = np.load(input_path / "model.npz")
+
+    model = MFModel(
+        user_factors=model_data["user_factors"],
+        artist_factors=model_data["artist_factors"]
+    )
+
+    config_data = np.load(input_path / "config.npz")
+
+    config = TrainingConfig(
+        **{
+            field: config_data[field].item()
+            for field in TrainingConfig.__dataclass_fields__
+        }
+    )
+
+    return model, config
+
 
 
 @dataclass
@@ -610,6 +682,52 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         # Early stopping logic can be added here based on validation metrics
 
     return model, history
+
+def train_different_parameters():
+    rates = {0.05, 0.2, 0.5}
+    regularizations = {0.01, 0.1}
+    batch_sizes = {512, 1024}
+    data = load_lastfm_dataset()
+
+    for rate in rates:
+        learn = rates[rate]
+        for regularization in regularizations:
+            reg = regularizations[regularization]
+            for batch_size in batch_sizes:
+                batch = batch_sizes[batch_size]
+                start_time = time()
+                config = TrainingConfig(
+                    n_factors=16,
+                    epochs=50,
+                    learning_rate=learn,
+                    regularization=reg,
+                    negatives_per_positive=3,
+                    positive_weight_alpha=0.5,
+                    batch_size=batch,  # positive anchors per batch
+                    seed=1235,
+                    top_k=10,
+                    early_stopping_patience=5,
+                )
+                current_run:str = ""
+            
+            
+                current_run += f"Config: {config}\n"
+            
+                print("Starting training with config:", config)
+                model, history = train_model(data, config)
+                # Further evaluation and saving of the model can be done here
+                end_time = time()
+                current_run += f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch\n"
+                current_run += f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch\n"
+                current_run += f"Final training loss: {history.train_loss[-1]:.4f}\n"
+                print(current_run)
+            
+                with open("training_log_params.txt", "a") as f:
+                    f.write(current_run + "\n\n\n")
+
+                        
+
+    
 
 from time import time
 def main():
