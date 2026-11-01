@@ -46,7 +46,7 @@ def overlap_count(A: csr_matrix, B: csr_matrix) -> int:
     Function to count the overlaps in sparse matrices.
     
     Parameters:
-    A (csr_marix): The first sparse matrix to compare.
+    A (csr_matrix): The first sparse matrix to compare.
     B (csr_matrix): The second sparse matrix to compare.
     
     Returns:
@@ -247,7 +247,7 @@ def binary_cross_entropy_loss(predicted_probability: float, target: float) -> fl
 
     Output: Scalar weighted BCE loss.
     """
-    return (target * np.log(predicted_probability) + (1 - target) * np.log(1 - predicted_probability))
+    return float(-(target * np.log(predicted_probability) + (1 - target) * np.log(1 - predicted_probability)))
 
 
 def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, target: float, weight: float,
@@ -404,13 +404,33 @@ def train_one_epoch(model: MFModel, train: csr_matrix, config: TrainingConfig, r
 # Validation and Testing
 ################
 
-def evaluate_binary_loss(model: MFModel, examples: TrainingBatch) -> float:
+def evaluate_binary_loss(model: MFModel, examples: TrainingBatch, regularization: float = 0.0) -> float:
     """
     Input: Model and a fixed batch of labelled examples.
 
     Output: Mean per-example weighted BCE.
     """
-    raise NotImplementedError("evaluate_binary_loss")
+    total_loss = 0.0
+    total_weight = 0.0
+    predicted_probs = predict_probabilities(model, examples.users, examples.artists)
+
+    for i in range(len(predicted_probs)):
+        probability = predicted_probs[i]
+        target = examples.targets[i]
+        weight = examples.weights[i]
+
+        user_vector = model.user_factors[examples.users[i]]
+        artist_vector = model.artist_factors[examples.artists[i]]
+        l2_penalty = (regularization / 2) * (np.dot(user_vector, user_vector) + np.dot(artist_vector, artist_vector))
+        total_loss += weight * binary_cross_entropy_loss(probability, target) + l2_penalty
+        total_weight += weight
+
+    if total_weight > 0:
+        return total_loss / total_weight
+    else:
+        return 0.0
+
+
 
 
 def evaluate_accuracy(model: MFModel, examples: TrainingBatch, threshold: float = 0.5) -> float:
@@ -419,7 +439,10 @@ def evaluate_accuracy(model: MFModel, examples: TrainingBatch, threshold: float 
 
     Output: Fraction of examples clasified correctly.
     """
-    raise NotImplementedError("evaluate_accuracy")
+    predicted_probs = predict_probabilities(model, examples.users, examples.artists)
+    predicted_labels = (predicted_probs >= threshold).astype(int)
+    accuracy = np.mean(predicted_labels == examples.targets)
+    return accuracy
 
 
 def evaluate_ranking(model: MFModel, train: csr_matrix, heldout: csr_matrix, k:int) -> dict[str, float]:
@@ -428,7 +451,61 @@ def evaluate_ranking(model: MFModel, train: csr_matrix, heldout: csr_matrix, k:i
 
     Output: Dictionary of ranking metrics (precision@k, recall@k, etc).
     """
-    raise NotImplementedError("evaluate_ranking")
+    if train.shape != heldout.shape:
+        raise ValueError("train and heldout matrices must have same shape")
+    if k <= 0:
+        raise ValueError("k needs to be positive")
+
+    n_users, n_artists = train.shape
+    precision_total = 0.0
+    recall_total = 0.0
+    ndcg_total = 0.0
+    users_with_heldout = 0
+
+    for user_idx in range(n_users):
+        heldout_items = heldout.getrow(user_idx).indices
+        if heldout_items.size == 0:
+            continue
+
+        users_with_heldout += 1
+        seen_items = train.getrow(user_idx).indices
+        candidate_items = np.setdiff1d(np.arange(n_artists), seen_items, assume_unique=True)
+
+        if candidate_items.size == 0:
+            continue
+
+        candidate_scores = predict_scores(model, np.full(candidate_items.shape[0], user_idx, dtype=np.int64), candidate_items)
+        ordered_candidates = candidate_items[np.argsort(candidate_scores)[::-1]]
+        top_k_items = ordered_candidates[:k]
+
+        relevant_items = set(heldout_items.tolist())
+        hits = np.intersect1d(top_k_items, heldout_items, assume_unique=True)
+
+        precision_total += len(hits) / max(1, len(top_k_items))
+        recall_total += len(hits) / len(heldout_items)
+
+        dcg = 0.0
+        for rank, item_idx in enumerate(top_k_items, start=1):
+            if item_idx in relevant_items:
+                dcg += 1.0 / np.log2(rank + 1)
+
+        ideal_dcg = 0.0
+        for rank in range(1, min(len(heldout_items), k) + 1):
+            ideal_dcg += 1.0 / np.log2(rank + 1)
+
+        if ideal_dcg > 0:
+            ndcg_total += dcg / ideal_dcg
+        else:
+            ndcg_total += 0.0
+
+    if users_with_heldout == 0:
+        return {"precision_at_k": 0.0, "recall_at_k": 0.0, "ndcg_at_k": 0.0}
+
+    return {
+        "precision_at_k": precision_total / users_with_heldout,
+        "recall_at_k": recall_total / users_with_heldout,
+        "ndcg_at_k": ndcg_total / users_with_heldout,
+    }
 
 
 def evaluate_model(model: MFModel, data: DatasetSplits, validation_examples: TrainingBatch, k:int) -> dict[str, float]:
@@ -437,7 +514,17 @@ def evaluate_model(model: MFModel, data: DatasetSplits, validation_examples: Tra
 
     Output: Dictionary with validation log loss, optionally others like validation accuracy, Recall@K, and NDCG@K. U choose, Sam.
     """
-    raise NotImplementedError("evaluate_model")
+    loss = evaluate_binary_loss(model, validation_examples, regularization=0.0)
+    accuracy = evaluate_accuracy(model, validation_examples)
+    ranking = evaluate_ranking(model, data.train, data.validation, k)
+
+    return {
+        "validation_loss": float(loss),
+        "validation_accuracy": float(accuracy),
+        "precision_at_k": float(ranking.get("precision_at_k", 0.0)),
+        "recall_at_k": float(ranking.get("recall_at_k", 0.0)),
+        "ndcg_at_k": float(ranking.get("ndcg_at_k", 0.0)),
+    }
 
 
 ######
@@ -502,7 +589,7 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         history.train_loss.append(train_loss)
 
         validation_examples = make_evaluation_examples(data.validation, build_known_positive_mask(data), config.negatives_per_positive, rng)
-        validation_loss = evaluate_binary_loss(model, validation_examples)
+        validation_loss = evaluate_binary_loss(model, validation_examples, config.regularization)
         history.validation_loss.append(validation_loss)
 
         ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
