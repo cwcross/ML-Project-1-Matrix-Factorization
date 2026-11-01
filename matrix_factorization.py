@@ -568,79 +568,45 @@ class TrainingConfig:
 
 
 
-def generate_shuffled_batches(train: csr_matrix, batch_size: int, rng: np.random.Generator, config: TrainingConfig) -> list[tuple[np.ndarray, np.ndarray]]:
-    """
-    Input: Training CSR matrix; number of positive anchors per batch; RNG; Training configuration.
-
-    Output: List of tuples (users, artists) representing shuffled batches of positive and negative interactions based on negative to positive ratio.
-    """
-    negatives_per_positive = config.negatives_per_positive
-
+def generate_shuffled_batches(train: csr_matrix, known_positive: csr_matrix, batch_size: int,
+                              rng: np.random.Generator, config: TrainingConfig) -> list[TrainingBatch]:
+    npp = config.negatives_per_positive
     users, artists, _ = extract_positive_interactions(train)
-    indices = np.arange(len(users))
-    rng.shuffle(indices)
 
-    shuffled_users = users[indices]
-    shuffled_artists = artists[indices]
-
-    # Generate batches of positive anchors and their corresponding negative samples
+    perm = rng.permutation(len(users))
+    users, artists = users[perm], artists[perm]
 
     batches = []
-    for i in range(0, len(shuffled_users), batch_size):
-        #TODO Can someone look at this I'm getting red lines and idk why. Also Owen, am I calling your function correctly?
-        # negative_samples = sample_negative_items(shuffled_users[i:i + batch_size], train, train.shape[1], negatives_per_positive, rng)
+    for i in range(0, len(users), batch_size):
+        pos_users = users[i:i + batch_size]
+        pos_artists = artists[i:i + batch_size]
 
-        #TODO add in the negative samples to the batch.
-        batch = []
-        batch_users = shuffled_users[i:i + batch_size]
-        batch_artists = shuffled_artists[i:i + batch_size]
-        batch.append((batch_users, batch_artists))
-        batches.append(batch)
+        # shape (n, npp); flatten is row-major, so it lines up with np.repeat
+        neg_artists = sample_negative_items(pos_users, known_positive, train.shape[1], npp, rng).reshape(-1)
+        neg_users = np.repeat(pos_users, npp)
+
+        b_users = np.concatenate([pos_users, neg_users])
+        b_artists = np.concatenate([pos_artists, neg_artists])
+        b_targets = np.concatenate([np.ones(len(pos_users)), np.zeros(len(neg_users))]).astype(np.float32)
+        b_weights = np.ones(len(b_users), dtype=np.float32)  # keep 1.0 until this works
+
+        order = rng.permutation(len(b_users))
+        batches.append(TrainingBatch(b_users[order], b_artists[order], b_targets[order], b_weights[order]))
 
     return batches
 
-def train_one_epoch(model: MFModel, train: csr_matrix, config: TrainingConfig, rng: np.random.Generator) -> float:
-    """
-    Input: Mutable model; training CSR matrix; negative-exclusion mask; validated training configuration; RNG.
+def train_one_epoch(model, train, known_positive, config, rng) -> float:
+    batches = generate_shuffled_batches(train, known_positive, config.batch_size, rng, config)
 
-    Output: Scalar average training objective for this epoch.
-    
-    Generate shuffled batches, process each labelled example with sequential SGD updates, accumulate a consistently defined loss, 
-    and return the epoch metric.
-    """
-    batches = generate_shuffled_batches(train, config.batch_size, rng, config)
-
-    total_loss = 0.0
-    total_examples = 0
-
+    total_loss, total_examples = 0.0, 0
     for batch in batches:
-        for batch_users, batch_artists in batch:
+        for u, a, t, w in zip(batch.users, batch.artists, batch.targets, batch.weights):
+            total_loss += sgd_update(model, u, a, t, w, config.learning_rate, config.regularization)
+            total_examples += 1
 
-            # Currently only positive samples are implemented
-            targets = np.ones(len(batch_users), dtype=np.float32)
-            weights = np.ones(len(batch_users), dtype=np.float32)
-
-            for user_idx, artist_idx, target, weight in zip(
-                batch_users, batch_artists, targets, weights
-            ):
-                if user_idx < model.user_factors.shape[0] and artist_idx < model.artist_factors.shape[0]:
-
-                    # sgd_update returns the individual example's loss
-                    loss = sgd_update(
-                        model,
-                        user_idx,
-                        artist_idx,
-                        target,
-                        weight,
-                        config.learning_rate,
-                        config.regularization
-                    )
-
-                    total_loss += loss
-                    total_examples += 1
-
-    print(f"Loss for this epoch: {total_loss / total_examples if total_examples > 0 else 0.0}")
-    return total_loss / total_examples if total_examples > 0 else 0.0
+    mean_loss = total_loss / max(1, total_examples)
+    print(f"Loss for this epoch: {mean_loss}")
+    return mean_loss
    
 
 
@@ -687,6 +653,7 @@ def evaluate_accuracy(model: MFModel, examples: TrainingBatch, threshold: float 
     predicted_labels = (predicted_probs >= threshold).astype(int)
     accuracy = np.mean(predicted_labels == examples.targets)
     return accuracy
+
 
 
 def evaluate_ranking(model: MFModel, train: csr_matrix, heldout: csr_matrix, k:int) -> dict[str, float]:
@@ -912,9 +879,8 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
     )
     for epoch in range(config.epochs):
         rng = np.random.default_rng(config.seed + epoch)
-        train_loss = train_one_epoch(model, data.train, config, rng)
+        train_loss = train_one_epoch(model, data.train, known_positive, config, rng)        
         history.train_loss.append(train_loss)
-
         validation_examples = make_evaluation_examples(data.validation, known_positive, config.negatives_per_positive, rng)
         print("User factor dimensions:", model.user_factors.shape)
         print("Artist factor dimensions:", model.artist_factors.shape)
@@ -988,7 +954,7 @@ def main():
     data = load_lastfm_dataset()
     config = TrainingConfig(
         n_factors=2,
-        epochs=1,
+        epochs=3,
         learning_rate=0.25,
         regularization=0.01,
         negatives_per_positive=3,
