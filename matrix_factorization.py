@@ -641,7 +641,7 @@ def main():
     current_run += f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch\n"
     current_run += f"Final training loss: {history.train_loss[-1]:.4f}\n"
     print(current_run)
-    
+
     with open("training_log.txt", "a") as f:
         f.write(current_run + "\n\n\n")
 main()
