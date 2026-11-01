@@ -1,0 +1,42 @@
+Config: TrainingConfig(n_factors=16, epochs=20, learning_rate=0.03, regularization=0.1, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 145.65 seconds for 20 epochs. 7.28 seconds per epoch
+Training time: 2.43 minutes for 20 epochs. 0.12 minutes per epoch
+Final training loss: 0.3392
+
+
+
+Config: TrainingConfig(n_factors=16, epochs=20, learning_rate=0.03, regularization=0.1, negatives_per_positive=3, positive_weight_alpha=2, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 145.77 seconds for 20 epochs. 7.29 seconds per epoch
+Training time: 2.43 minutes for 20 epochs. 0.12 minutes per epoch
+Final training loss: 0.3392
+
+
+
+Config: TrainingConfig(n_factors=16, epochs=20, learning_rate=0.05, regularization=0.1, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 146.56 seconds for 20 epochs. 7.33 seconds per epoch
+Training time: 2.44 minutes for 20 epochs. 0.12 minutes per epoch
+Final training loss: 0.3275
+
+
+
+Config: TrainingConfig(n_factors=16, epochs=20, learning_rate=0.1, regularization=0.1, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 146.46 seconds for 20 epochs. 7.32 seconds per epoch
+Training time: 2.44 minutes for 20 epochs. 0.12 minutes per epoch
+Final training loss: 0.3252
+
+
+
+Config: TrainingConfig(n_factors=16, epochs=20, learning_rate=0.5, regularization=0.1, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 144.68 seconds for 20 epochs. 7.23 seconds per epoch
+Training time: 2.41 minutes for 20 epochs. 0.12 minutes per epoch
+Final training loss: 0.3251
+
+
+
+Config: TrainingConfig(n_factors=16, epochs=20, learning_rate=0.25, regularization=0, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 145.59 seconds for 20 epochs. 7.28 seconds per epoch
+Training time: 2.43 minutes for 20 epochs. 0.12 minutes per epoch
+Final training loss: 0.0007
+
+
+

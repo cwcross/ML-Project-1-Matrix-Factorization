@@ -2,3 +2,4 @@
 venv
 raw_data/
 __pycache__
+.venv/
