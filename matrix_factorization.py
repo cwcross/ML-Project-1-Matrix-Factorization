@@ -163,17 +163,41 @@ def make_evaluation_examples(heldout:csr_matrix, known_positive: csr_matrix, neg
 
     Output: TrainingBatch containing held-out positives (target=1) and sampled negatives (target=0), with unit weights.
     """
-    if negatives_per_positive < 0:
-        raise ValueError("negatives_per_positive cannot be negative")
+    heldout = heldout.tocsr(copy=True)
+    heldout.sum_duplicates()
+    heldout.eliminate_zeros()
+    heldout.sort_indices()
 
-    if known_positive.shape[1] != heldout.shape[1]:
-        raise ValueError("n_artists does not match heldout shape")
+    positive_users, positive_artists, player_counts = (extract_positive_interactions(heldout))
 
-    # Work with a clean CSR copy
-    known = known_positive.tocsr(copy=True)
-    known.sum_duplicates()
-    known.eliminate_zeros()
-    known.sort_indices()
+    n_positive = len(positive_users)
+
+    negative_artists = np.empty((n_positive,negatives_per_positive),dtype=np.int64)
+    negative_users = np.repeat(positive_users, negatives_per_positive)
+    negative_artists = negative_users.flatten() #into 1d array
+
+
+    users = np.concatenate([positive_users, negative_users])
+    artists = np.concatenate([positive_artists,negative_artists])
+
+    targets = np.concatenate([np.ones(n_positive),np.zeros(len(negative_users))]).astype(np.float32)
+
+    weights = np.ones(len(users),dtype=np.float32)
+
+    permutation = rng.permutation(len(users))
+
+    
+
+    return TrainingBatch(
+        users = users[permutation],
+        artists = artists[permutation],
+        targets = targets[permutation],
+        weights = weights
+    )
+
+
+
+    
 
 ######
 # Initialize Model and Make Predictions
@@ -214,8 +238,10 @@ def predict_scores(model: MFModel, users: np.ndarray, artists: np.ndarray) -> np
 
     Output: 1-D array of raw dot-product scores, shape (n_pairs,).  
     """
-    user_vectors = model.user_factors[users]
-    artist_vectors = model.artist_factors[artists]
+    user_indeces = np.where(users < model.user_factors.shape[0])
+    artist_indeces = np.where(artists < model.artist_factors.shape[0])
+    user_vectors = model.user_factors[user_indeces]
+    artist_vectors = model.artist_factors[artist_indeces]
 
     scores = np.sum(user_vectors * artist_vectors, axis=1)
     return scores
@@ -608,8 +634,8 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         train_loss = train_one_epoch(model, data.train, config, rng)
         history.train_loss.append(train_loss)
 
-        validation_examples = make_evaluation_examples(data.validation, data, config.negatives_per_positive, rng)
-        validation_loss = evaluate_binary_loss(model, validation_examples)
+        validation_examples = make_evaluation_examples(data.validation, data.validation, config.negatives_per_positive, rng)
+        validation_loss = evaluate_binary_loss(model, validation_examples, config.regularization)
         history.validation_loss.append(validation_loss)
 
         # ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
