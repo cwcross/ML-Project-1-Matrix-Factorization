@@ -534,8 +534,8 @@ def main():
     data = load_lastfm_dataset()
     config = TrainingConfig(
         n_factors=16,
-        epochs=10,
-        learning_rate=0.01,
+        epochs=50,
+        learning_rate=0.05,
         regularization=0.1,
         negatives_per_positive=3,
         positive_weight_alpha=0.5,
@@ -544,6 +544,7 @@ def main():
         top_k=10,
         early_stopping_patience=5,
     )
+    print("Starting training with config:", config)
     model, history = train_model(data, config)
     print("Training completed.")
     print("Training Loss History:", history.train_loss)
