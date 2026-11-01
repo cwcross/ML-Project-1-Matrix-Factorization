@@ -526,9 +526,6 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
 
 from time import time
 def main():
-    """
-    Main function to load data, train the model, and evaluate it.
-    """
     # log time difference between start and end of training
     start_time = time()
     data = load_lastfm_dataset()
@@ -544,14 +541,22 @@ def main():
         top_k=10,
         early_stopping_patience=5,
     )
+    current_run:str = ""
+
+
+    current_run += f"Config: {config}\n"
+
     print("Starting training with config:", config)
     model, history = train_model(data, config)
-    print("Training completed.")
-    print("Training Loss History:", history.train_loss)
     # Further evaluation and saving of the model can be done here
     end_time = time()
-    print(f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch")
-    print(f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch")
+    current_run += f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch\n"
+    current_run += f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch\n"
+    current_run += f"Final training loss: {history.train_loss[-1]:.4f}\n"
+    print(current_run)
+    
+    with open("training_log.txt", "a") as f:
+        f.write(current_run + "\n\n\n")
 main()
 
 """
