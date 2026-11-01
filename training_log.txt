@@ -54,3 +54,17 @@ Final training loss: 0.4020
 Training loss history: [0.6226404193066489, 0.41659516652103223, 0.40201668426575926]Validation loss history: [0.41752478217124944, 0.40391943257107094, 0.3941073918067031]
 
 
+Config: TrainingConfig(n_factors=16, epochs=10, learning_rate=0.25, regularization=0.01, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 471.95 seconds for 10 epochs. 47.20 seconds per epoch
+Training time: 7.87 minutes for 10 epochs. 0.79 minutes per epoch
+Final training loss: 0.3185
+Training loss history: [0.572611437704259, 0.3992206026306055, 0.3529926433022062, 0.32950354388875924, 0.3212847146775151, 0.3195312191692856, 0.3192778097681598, 0.31899285581135767, 0.31956377819263637, 0.3185249744266937]Validation loss history: [0.4133039146977727, 0.3665947017549752, 0.3361385265604393, 0.330702934725828, 0.33384974416510493, 0.33808781566592166, 0.33996981621250183, 0.3409533066041302, 0.342143485611525, 0.3428522945173784]
+
+
+Config: TrainingConfig(n_factors=12, epochs=5, learning_rate=0.18, regularization=0.01, negatives_per_positive=1, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 145.23 seconds for 5 epochs. 29.05 seconds per epoch
+Training time: 2.42 minutes for 5 epochs. 0.48 minutes per epoch
+Final training loss: 0.3764
+Training loss history: [0.6752547814696064, 0.513218396129542, 0.4598241280254951, 0.4126688907627913, 0.37635161057348054]Validation loss history: [0.5847772936581764, 0.48285717227111136, 0.4396000547951047, 0.4015350820753243, 0.3777289697406132]
+
+

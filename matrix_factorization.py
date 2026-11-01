@@ -882,14 +882,14 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         train_loss = train_one_epoch(model, data.train, known_positive, config, rng)        
         history.train_loss.append(train_loss)
         validation_examples = make_evaluation_examples(data.validation, known_positive, config.negatives_per_positive, rng)
-        print("User factor dimensions:", model.user_factors.shape)
-        print("Artist factor dimensions:", model.artist_factors.shape)
+        # print("User factor dimensions:", model.user_factors.shape)
+        # print("Artist factor dimensions:", model.artist_factors.shape)
 
-        print("Validation users:", validation_examples.users.min(),
-            validation_examples.users.max())
+        # print("Validation users:", validation_examples.users.min(),
+        #     validation_examples.users.max())
 
-        print("Validation artists:", validation_examples.artists.min(),
-            validation_examples.artists.max())
+        # print("Validation artists:", validation_examples.artists.min(),
+        #     validation_examples.artists.max())
         validation_loss = evaluate_binary_loss(model, validation_examples, config.regularization)
         history.validation_loss.append(validation_loss)
 
@@ -953,11 +953,11 @@ def main():
     start_time = time()
     data = load_lastfm_dataset()
     config = TrainingConfig(
-        n_factors=2,
-        epochs=3,
-        learning_rate=0.25,
-        regularization=0.01,
-        negatives_per_positive=3,
+        n_factors=12,
+        epochs=15,
+        learning_rate=0.18,
+        regularization=0.1,
+        negatives_per_positive=1,
         positive_weight_alpha=.5,
         batch_size=1024,  # positive anchors per batch
         seed=1235,
