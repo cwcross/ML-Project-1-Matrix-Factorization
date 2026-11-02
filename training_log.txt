@@ -82,3 +82,42 @@ Final training loss: 0.1441
 Training loss history: [0.37955113685389885, 0.2173812728027845, 0.18117323233086577, 0.15588595923507131, 0.14405794751379344]Validation loss history: [0.22307936435954304, 0.1952989772879565, 0.164348633521778, 0.1536062372196933, 0.15149380739733648]
 
 
+Config: TrainingConfig(n_factors=16, epochs=2, learning_rate=0.1, regularization=0.001, negatives_per_positive=3, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 100.90 seconds for 2 epochs. 50.45 seconds per epoch
+Training time: 1.68 minutes for 2 epochs. 0.84 minutes per epoch
+Final training loss: 0.5124
+Training loss history: [0.692432040840177, 0.5123537022252703]Validation loss history: [0.6847144440772307, 0.3848785756591629]
+Zero-model validation loss: 0.6931
+
+Trained-model validation loss: 0.3859
+
+
+
+Config: TrainingConfig(n_factors=6, epochs=2, learning_rate=0.1, regularization=0.001, negatives_per_positive=1, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 58.33 seconds for 2 epochs. 29.16 seconds per epoch
+Training time: 0.97 minutes for 2 epochs. 0.49 minutes per epoch
+Final training loss: 0.6224
+Training loss history: [0.6930279270929762, 0.6224154215661388]Validation loss history: [0.6917970035781681, 0.5378170898588148]
+
+
+Config: TrainingConfig(n_factors=3, epochs=2, learning_rate=0.1, regularization=0.01, negatives_per_positive=1, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 110.59 seconds for 2 epochs. 55.30 seconds per epoch
+Training time: 1.84 minutes for 2 epochs. 0.92 minutes per epoch
+Final training loss: 0.6552
+Training loss history: [0.6931293380562672, 0.6551813785915936]Validation loss history: [0.6929375584275475, 0.5766363448405224]
+
+
+Config: TrainingConfig(n_factors=3, epochs=2, learning_rate=0.1, regularization=0.01, negatives_per_positive=1, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 110.32 seconds for 2 epochs. 55.16 seconds per epoch
+Training time: 1.84 minutes for 2 epochs. 0.92 minutes per epoch
+Final training loss: 0.6552
+History: TrainingHistory(train_loss=[0.6931293380562672, 0.6551813785915936], validation_loss=[0.6929375584275475, 0.5766363448405224], validation_recall_at_k=[0.0318062316949472, 0.03685798991851174], validation_ndcg_at_k=[0.03638650803982594, 0.04013231963147967])
+
+
+Config: TrainingConfig(n_factors=16, epochs=10, learning_rate=0.1, regularization=0.01, negatives_per_positive=10, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 1385.33 seconds for 10 epochs. 138.53 seconds per epoch
+Training time: 23.09 minutes for 10 epochs. 2.31 minutes per epoch
+Final training loss: 0.2014
+Training loss history: [0.48383770591196135, 0.2500274420789789, 0.24659166642088332, 0.23167526520128792, 0.21890372304656439, 0.21160175809853046, 0.20676387532011492, 0.20399339430595817, 0.20228204178441084, 0.20137354955467898]Validation loss history: [0.2485295655901456, 0.24776283245408018, 0.23796960958320948, 0.22293622655371897, 0.21435199676206754, 0.21003272801658396, 0.20780114976747122, 0.20736402263568435, 0.2070044401154272, 0.20714537016037168]Validation NDCG history: [0.0345842246056115, 0.032984570367523114, 0.050067639635020686, 0.07438584884315202, 0.088260917456388, 0.09717209852593911, 0.10447155357442788, 0.10539992309327338, 0.10864973086638231, 0.10804543310737347]
+
+
