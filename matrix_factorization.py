@@ -1019,8 +1019,8 @@ def train_different_parameters(data: DatasetSplits, configs: list[TrainingConfig
 
         results.append(result)
 
-        model_dir = Path("validation/models")
-        save_model(model, config, result, model_dir / f"model_{md5(str(config).encode()).hexdigest()}")
+        model_dir = Path("validation/models") / f"model_{md5(str(config).encode()).hexdigest()}"
+        save_model(model, config, result, model_dir)
         (model_dir / "log.txt").write_text(current_run)
 
     return results
