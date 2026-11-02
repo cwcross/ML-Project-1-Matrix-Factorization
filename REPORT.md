@@ -1,6 +1,35 @@
-# Algorithm
+# Report
+
+Charlie Cross, Sam Cohen, Owen Yaggy
 
 Our collaborative filtering model uses matrix factorization optimized with SGD.
+
+## Usage
+
+Evaluate model performance with stored model:
+
+```sh
+python3 matrix_factorization.py --task evaluate
+```
+
+Or, you can set up from scratch:
+
+```sh
+python3 data_setup.py
+python3 tidy_data.py
+python3 matrix_factorization.py --task setup_configs
+python3 matrix_factorization.py --task validate
+python3 matrix_factorization.py --task evaluate
+```
+
+The most intense step is `--validate`, which trains a model for each hard-coded config and tests its performance on the validation set. To split this work up across cores or machines, you can use the optional subset argument. We have 30 configs, so you could run multiple processes like so:
+
+```sh
+# run in one process
+python3 matrix_factorization.py --task validate 0 16
+# run in another process/on another machine
+python3 matrix_factorization.py --task evaluate 16 30
+```
 
 ## Data Tidying
 
@@ -185,25 +214,31 @@ $$
 
 ### Updates
 
+Loss for SGD:
+
+$$
+\ell = w\left[-y \log \hat p - (1 - y)\log(1 - \hat p)\right] + \frac{\lambda}{2}\left(\lVert p_u \rVert^2 + \lVert q_i \rVert^2\right)
+$$
+
 We loop over the examples in the data. For each example $(u, i, y, w)$ from arrays $(\text{users}, \text{artists}, W, Y)$:
 
 1. Record score.
-
-   > This captures
-   >
 
 $$
 s_{ui} = p_u^\top q_i = \sum_{f=1}^kp_{uf}q_{if}, \qquad \hat p = \sigma(s)
 $$
 
----
-
----
-
-Loss for SGD:
+2. Compute gradients
 
 $$
-\ell = w\left[-y \log \hat p - (1 - y)\log(1 - \hat p)\right] + \frac{\lambda}{2}\left(\lVert p_u \rVert^2 + \lVert q_i \rVert^2\right)
+g = \frac{\partial \ell}{\partial s_{ui}}=w(\hat p_{ui} - y) \\
+\frac{\partial \ell}{\partial p_u} = g q_i + \lambda p_u, \qquad \frac{\partial \ell}{\partial q_i}=gp_u+\lambda q_i
+$$
+
+3. Make updates
+
+$$
+p_u \gets p_u - \eta(gq_i+\lambda p_u), \qquad q_i \gets q_i - \eta(gp_u + \lambda q_i)
 $$
 
 ## Validation
@@ -227,3 +262,20 @@ $$NDCG@k=\frac{DCG@k}{IDCG@k} \in [0,1]$$
 We then chose our model based on the best NDCG of the tested parameters, where we tried out different combinations of learning rate and regularization.
 
 ### Results
+
+For validation, we varied the number of epochs, learning rate,and regularization factor (lambda).
+
+We found that the best validation performance of those we tested was a training configuration with:
+- 16 factors is the latent factor vectors
+- 32 epochs
+- 0.05 learning rate
+- 0.01 regularization
+- 10 negatives sampled per positive
+- 0.5 positive weight alpha
+
+This achieved a NDCG@K of 0.129 on our training data.
+When tested with withheld data (test set), it achieved a performance of 0.094.
+
+We tested in comparison with the standard matrix factorization algorithm in the python `implicit` library, which had a NDCG@K of 0.140.
+
+Overall, while our model was slower and less accurate, it was comparable to the performance of the standard model, and we are optimistic we could improve it with much more tuning of hyperparameters.

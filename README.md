@@ -1,5 +1,7 @@
 # Recommendation Algorithms 
 
+See our report in [REPORT.md](REPORT.md)
+
 **Implementation:**
 
 * Matrix Factorization Algorithms entirely by hand:  
