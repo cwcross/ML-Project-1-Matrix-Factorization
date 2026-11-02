@@ -82,3 +82,17 @@ Final training loss: 0.1441
 Training loss history: [0.37955113685389885, 0.2173812728027845, 0.18117323233086577, 0.15588595923507131, 0.14405794751379344]Validation loss history: [0.22307936435954304, 0.1952989772879565, 0.164348633521778, 0.1536062372196933, 0.15149380739733648]
 
 
+Config: TrainingConfig(n_factors=16, epochs=15, learning_rate=0.03, regularization=0.001, negatives_per_positive=1, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 346.55 seconds for 15 epochs. 23.10 seconds per epoch
+Training time: 5.78 minutes for 15 epochs. 0.39 minutes per epoch
+Final training loss: 0.4165
+Training loss history: [0.6931483232784245, 0.6931250660278238, 0.6927995678475788, 0.6853917930557911, 0.6378807464593451, 0.5748164184292816, 0.5323405002218934, 0.5032152752396555, 0.4820191511508716, 0.46741170882942307, 0.4567011435027334, 0.44764727480603206, 0.4382122734441252, 0.4290282435905229, 0.41650103023337026]Validation loss history: [np.float32(0.69110626), np.float32(0.691099), np.float32(0.6903242), np.float32(0.6702332), np.float32(0.6039896), np.float32(0.55214757), np.float32(0.51945126), np.float32(0.49542615), np.float32(0.4785201), np.float32(0.4677994), np.float32(0.4587674), np.float32(0.45230347), np.float32(0.44313315), np.float32(0.43382236), np.float32(0.4221898)]
+
+
+Config: TrainingConfig(n_factors=2, epochs=3, learning_rate=0.03, regularization=0.001, negatives_per_positive=1, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=5, early_stopping_patience=5)
+Training time: 83.29 seconds for 3 epochs. 27.76 seconds per epoch
+Training time: 1.39 minutes for 3 epochs. 0.46 minutes per epoch
+Final training loss: 0.6931
+Training loss history: [0.6931472791399688, 0.6931448770395982, 0.6931187046570667]Validation loss history: [np.float32(0.6910336), np.float32(0.69103724), np.float32(0.6910142)]
+
+

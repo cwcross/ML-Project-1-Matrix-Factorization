@@ -1,4 +1,9 @@
 # Import necessary libraries here
+from implicit_comparison import main as print_implicit_comparison
+import argparse
+from time import time
+import sys
+from typing import List, Optional
 from dataclasses import dataclass
 from pathlib import Path
 from scipy.sparse import csr_matrix, load_npz
@@ -491,7 +496,7 @@ def calculate_pair_loss(user_vector: np.ndarray, artist_vector: np.ndarray, targ
     predicted_probability:float = sigmoid(np.array(score))
     loss = binary_cross_entropy_loss(predicted_probability, target)
 
-    #TODO SOMEONE DOUBLE CHECK ME HERE I DIDNT TAKE LINEAR ALGEBRA!!!!!
+    #TODO SOMEONE DOUBLE CHECK ME HERE I DIDNT TAKE LINEAR ALGEBRA!!!!! looks good to me
     l2_penalty = (regularization/2) * (np.dot(user_vector,user_vector.T) + np.dot(artist_vector, artist_vector.T)) 
     return float(weight * loss + l2_penalty)
 
@@ -605,7 +610,7 @@ def train_one_epoch(model, train, known_positive, config, rng) -> float:
             total_examples += 1
 
     mean_loss = total_loss / max(1, total_examples)
-    print(f"Loss for this epoch: {mean_loss}")
+    #print(f"Loss for this epoch: {mean_loss}")
     return mean_loss
    
 
@@ -713,9 +718,9 @@ def evaluate_ranking(model: MFModel, train: csr_matrix, heldout: csr_matrix, k:i
         return {"precision_at_k": 0.0, "recall_at_k": 0.0, "ndcg_at_k": 0.0}
 
     return {
-        "precision_at_k": precision_total / users_with_heldout,
-        "recall_at_k": recall_total / users_with_heldout,
-        "ndcg_at_k": ndcg_total / users_with_heldout,
+        "precision_at_k": float(precision_total / users_with_heldout),
+        "recall_at_k": float(recall_total / users_with_heldout),
+        "ndcg_at_k": float(ndcg_total / users_with_heldout),
     }
 
 
@@ -795,11 +800,59 @@ def recommend_for_user(model: MFModel, user_idx: int, train: csr_matrix, artist_
 
     return recommendations
 
-def save_model(model: MFModel, config: TrainingConfig, output_path: str | Path) -> None:
-    """
-    Input: Model, training configuration, output path.
 
-    Output: None. Saves model and config to disk.
+@dataclass
+class ValidationResult:
+    rate: float
+    regularization: float
+    epochs: float
+    n_factors: float
+    ndcg_at_k: float
+
+
+@dataclass
+class ModelConfigResult:
+    model: MFModel
+    config: TrainingConfig
+    result: ValidationResult
+
+
+def save_config(config: TrainingConfig, output_path: str | Path) -> None:
+    """
+    Input: training configuration, output path
+
+    Output: None. Saves training config to disk.
+    """
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    np.savez(
+        output_path / "config.npz",
+        **{
+            field: getattr(config, field)
+            for field in config.__dataclass_fields__
+        }
+    )
+
+
+def load_config(input_path: Path) -> TrainingConfig:
+    """
+    Input: Path to config directory
+
+    Output: TrainingConfig loaded from disk
+    """
+    input_path = Path(input_path)
+
+    config_data = np.load(input_path / "config.npz")
+
+    return config_data
+
+
+def save_model(model: MFModel, config: TrainingConfig, result: ValidationResult, output_path: str | Path) -> None:
+    """
+    Input: Model, training configuration, validation result, output path.
+
+    Output: None. Saves model, config and validation result to disk.
     """
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -818,13 +871,20 @@ def save_model(model: MFModel, config: TrainingConfig, output_path: str | Path) 
         }
     )
 
+    np.savez(
+        output_path / "result.npz",
+        **{
+            field: getattr(result, field)
+            for field in result.__dataclass_fields__
+        }
+    )
 
 
-def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig]: 
+def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig, ValidationResult]: 
     """
     Input: Path to model directory.
 
-    Output: Tuple of (MFModel, TrainingConfig) loaded from disk.
+    Output: Tuple of (MFModel, TrainingConfig, ValidationResult) loaded from disk.
     """
     input_path = Path(input_path)
 
@@ -837,6 +897,8 @@ def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig]:
 
     config_data = np.load(input_path / "config.npz")
 
+    result_data = np.load(input_path / "result.npz")
+
     config = TrainingConfig(
         **{
             field: config_data[field].item()
@@ -844,8 +906,14 @@ def load_model(input_path: Path) -> tuple[MFModel, TrainingConfig]:
         }
     )
 
-    return model, config
+    result = ValidationResult(
+        **{
+            field: result_data[field].item()
+            for field in ValidationResult.__dataclass_fields__
+        }
+    )
 
+    return model, config, result
 
 
 @dataclass
@@ -853,10 +921,10 @@ class TrainingHistory:
     train_loss: list[float]
     validation_loss: list[float]
     validation_recall_at_k: list[float]
-    validation_ndcg_at_k: list[float] # Sam this is Normalized Discounted Cumulative Gain you're gonna wanna look into it -Charlie
+    validation_ndcg_at_k: list[float] # Sam this is Normalized Discounted Cumulative Gain you're gonna wanna look into it -Charlie finished -Sam
 
 
-def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, TrainingHistory]:
+def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, TrainingHistory, ValidationResult]:
     """
     Input: Complete aligned data splits, validated training configuration.
 
@@ -891,65 +959,204 @@ def train_model(data: DatasetSplits, config: TrainingConfig) -> tuple[MFModel, T
         # print("Validation artists:", validation_examples.artists.min(),
         #     validation_examples.artists.max())
         validation_loss = evaluate_binary_loss(model, validation_examples, config.regularization)
-        print(f"Validaiton loss for this epoch: {validation_loss}")
+        #print(f"Validaiton loss for this epoch: {validation_loss}")
         history.validation_loss.append(validation_loss)
 
-        # ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
-        # history.validation_recall_at_k.append(ranking_metrics.get('recall_at_k', 0.0))
-        # history.validation_ndcg_at_k.append(ranking_metrics.get('ndcg_at_k', 0.0))
+        #ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
+        #print(f"ranking metrics: {ranking_metrics}")
+        #history.validation_recall_at_k.append(ranking_metrics.get('recall_at_k', 0.0))
+        #history.validation_ndcg_at_k.append(ranking_metrics.get('ndcg_at_k', 0.0))
 
         # Early stopping logic can be added here based on validation metrics
+        print(f"epoch {epoch} done")
 
-    return model, history
+    ranking_metrics = evaluate_ranking(model, data.train, data.validation, config.top_k)
+    print(f"ranking metrics: {ranking_metrics}")
+    history.validation_recall_at_k.append(ranking_metrics.get('recall_at_k', 0.0))
+    history.validation_ndcg_at_k.append(ranking_metrics.get('ndcg_at_k', 0.0))
+    result = ValidationResult(
+        rate=config.learning_rate,
+        regularization=config.regularization,
+        epochs=config.epochs,
+        n_factors=config.n_factors,
+        ndcg_at_k=ranking_metrics.get('ndcg_at_k', 0.0)
+    )
+    return model, history, result
 
-def train_different_parameters():
+
+
+def train_different_parameters(data: DatasetSplits, configs: list[TrainingConfig], subset: tuple[int, int] | None = None):
+    if subset is None:
+        subset = (0, len(configs))
+    
+    results: list[ValidationResult] = []    
+
+    for config_index in range(subset[0], subset[1]):
+        
+        start_time = time()
+        config = configs[config_index]
+        current_run:str = ""
+    
+    
+        current_run += f"Config: {config}\n"
+    
+        print("Starting training with config:", config)
+        model, history, result = train_model(data, config)
+        # Further evaluation and saving of the model can be done here
+        end_time = time()
+        current_run += f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch\n"
+        current_run += f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch\n"
+        #current_run += f"Final training loss: {history.train_loss[-1]:.4f}\n"
+        print(current_run)
+
+        results.append(result)
+
+        data_dir = Path("validation/models")
+        save_model(model, config, result, data_dir / f"model_{hash(config)}")
+    
+        with open(data_dir / "training_log_params.txt", "a") as f:
+            f.write(current_run + "\n\n\n")
+    
+
+    return results
+
+
+def setup_validation_configs() -> list[TrainingConfig]:
     rates = [0.05, 0.2, 0.5]
     regularizations = [0.01, 0.1]
-    batch_sizes = [512, 1024]
-    data = load_lastfm_dataset()
+    epochs = [2, 4, 8, 16, 32]
+    n_factors = 16
+    negatives_per_positive = 10
+    positive_weight_alpha = 0.5
+    batch_size = 1024
+    top_k = 10
+
+    configs: list[TrainingConfig] = []    
 
     for rate in rates:
         learn = rate
         for regularization in regularizations:
-            reg = regularization
-            for batch_size in batch_sizes:
-                batch = batch_size
-                start_time = time()
+            for epoch in epochs:
                 config = TrainingConfig(
-                    n_factors=16,
-                    epochs=50,
+                    n_factors=n_factors,
+                    epochs=epoch,
                     learning_rate=learn,
-                    regularization=reg,
-                    negatives_per_positive=3,
-                    positive_weight_alpha=0.5,
-                    batch_size=batch,  # positive anchors per batch
+                    regularization=regularization,
+                    negatives_per_positive=negatives_per_positive,
+                    positive_weight_alpha=positive_weight_alpha,
+                    batch_size=batch_size,  # positive anchors per batch
                     seed=1235,
-                    top_k=10,
+                    top_k=top_k,
                     early_stopping_patience=5,
                 )
-                current_run:str = ""
-            
-            
-                current_run += f"Config: {config}\n"
-            
-                print("Starting training with config:", config)
-                model, history = train_model(data, config)
-                # Further evaluation and saving of the model can be done here
-                end_time = time()
-                current_run += f"Training time: {end_time - start_time:.2f} seconds for {config.epochs} epochs. {(end_time - start_time)/config.epochs:.2f} seconds per epoch\n"
-                current_run += f"Training time: {(end_time - start_time)/60:.2f} minutes for {config.epochs} epochs. {((end_time - start_time)/config.epochs)/60:.2f} minutes per epoch\n"
-                current_run += f"Final training loss: {history.train_loss[-1]:.4f}\n"
-                print(current_run)
-            
-                with open("training_log_params.txt", "a") as f:
-                    f.write(current_run + "\n\n\n")
+                configs.append(config)
+                save_config(config, Path("validation/configs") / f"config_{hash(config)}")
 
-                        
+    return configs
 
+
+def pick_best_result(results: list[ValidationResult]) -> ValidationResult:
+    best: ValidationResult | None = None
+    for result in results:
+        if best is None:
+            best = result
+        else:
+            if result.ndcg_at_k > best.ndcg_at_k:
+                best = result
+    if best is None:
+        best = results[0]
+    return best
+
+
+def pick_best_model(models: list[ModelConfigResult]) -> ModelConfigResult:
+    best: ModelConfigResult | None = None
+    for model in models:
+        if best is None:
+            best = model
+        else:
+            if model.result.ndcg_at_k > best.result.ndcg_at_k:
+                best = model
+    if best is None:
+        best = models[0]
+    return best
     
 
-from time import time
-def main():
+def parse_range(value: str) -> int:
+    """Ensures range inputs are valid"""
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Range value '{value}' must be an integer")
+
+
+def list_unique_filenames(directory_path: Path) -> list[str]:
+    filenames = [item.name for item in directory_path.glob("*") if item.is_file()]
+    return sorted(list(set(filenames)))
+
+
+def main(argv: Optional[List[str]] = None):
+    parser = argparse.ArgumentParser(
+        description="CLI for using the matrix factorization model"
+    )
+    parser.add_argument(
+        "--task",
+        choices=["setup_configs", "validate", "evaluate"],
+        required=True,
+        help="The specific task to do run"
+    )
+    parser.add_argument(
+        "--range",
+        type=parse_range,
+        nargs=2,
+        metavar=("START", "END"),
+        default=None,
+        help="Specify which training configs you want to run using two integers: START END"
+    )
+    args = parser.parse_args(argv)
+    task = None
+    range = None
+    if args.task is not None:
+        task = args.task
+    if args.range is not None:
+        range = args.range
+    
+    if task == "setup_configs":
+        configs = setup_validation_configs()
+    
+    data = load_lastfm_dataset()
+
+    data_dir = Path("validation")
+    if task == "validate":
+        configs: list[TrainingConfig] = []
+        config_files = list_unique_filenames(data_dir / "configs")
+        for config_file in config_files:
+            config = load_config(data_dir / "configs" / config_file)
+            configs.append(config)
+        validation_results = train_different_parameters(data, configs, range)
+
+    if task == "evaluate":
+        # look through validation/models for each saved model hash
+        # identify best one
+        # evaluate and compare using that one
+        model_files = list_unique_filenames(data_dir / "models")
+        models: list[ModelConfigResult] = []
+        for model_file in model_files:
+            (model, config, result) = load_model(data_dir / "models" / model_file)
+            models.append(ModelConfigResult(model, config, result))
+        best_model = pick_best_model(models)
+        print("Best model config:")
+        print(best_model.config)
+        print("Evaluation result:")
+        print(f"ndcg_at_k: {best_model.result.ndcg_at_k}")
+        # evaluate on test
+        ranking_metrics = evaluate_ranking(model, data.train, data.test, 10)
+        print("Result on test data:")
+        print(f"ndcg_at_k: {ranking_metrics["ndcg_at_k"]}")
+        # compare to implicit
+        print_implicit_comparison()
+
+
+def dev_main():
     # log time difference between start and end of training
     start_time = time()
     data = load_lastfm_dataset()
@@ -983,7 +1190,9 @@ def main():
 
     with open("training_log.txt", "a") as f:
         f.write(current_run + "\n\n\n")
-main()
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
 
 """
 Starting Config:
