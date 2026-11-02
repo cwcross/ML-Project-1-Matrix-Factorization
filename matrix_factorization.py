@@ -1,4 +1,5 @@
 # Import necessary libraries here
+from hashlib import md5
 from implicit_comparison import main as print_implicit_comparison
 import argparse
 from time import time
@@ -845,7 +846,14 @@ def load_config(input_path: Path) -> TrainingConfig:
 
     config_data = np.load(input_path / "config.npz")
 
-    return config_data
+    config = TrainingConfig(
+        **{
+            field: config_data[field].item()
+            for field in TrainingConfig.__dataclass_fields__
+        }
+    )
+
+    return config
 
 
 def save_model(model: MFModel, config: TrainingConfig, result: ValidationResult, output_path: str | Path) -> None:
@@ -1011,12 +1019,9 @@ def train_different_parameters(data: DatasetSplits, configs: list[TrainingConfig
 
         results.append(result)
 
-        data_dir = Path("validation/models")
-        save_model(model, config, result, data_dir / f"model_{hash(str(config))}")
-    
-        with open(data_dir / "training_log_params.txt", "a") as f:
-            f.write(current_run + "\n\n\n")
-    
+        model_dir = Path("validation/models")
+        save_model(model, config, result, model_dir / f"model_{md5(str(config).encode()).hexdigest()}")
+        (model_dir / "log.txt").write_text(current_run)
 
     return results
 
@@ -1050,7 +1055,7 @@ def setup_validation_configs() -> list[TrainingConfig]:
                     early_stopping_patience=5,
                 )
                 configs.append(config)
-                save_config(config, Path("validation/configs") / f"config_{hash(str(config))}")
+                save_config(config, Path("validation/configs") / f"config_{md5(str(config).encode()).hexdigest()}")
 
     return configs
 
@@ -1081,16 +1086,16 @@ def pick_best_model(models: list[ModelConfigResult]) -> ModelConfigResult:
     return best
     
 
-def parse_range(value: str) -> int:
-    """Ensures range inputs are valid"""
+def parse_subset(value: str) -> int:
+    """Ensures subset inputs are valid"""
     try:
         return int(value)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"Range value '{value}' must be an integer")
+        raise argparse.ArgumentTypeError(f"Subset value '{value}' must be an integer")
 
 
 def list_unique_filenames(directory_path: Path) -> list[str]:
-    filenames = [item.name for item in directory_path.glob("*") if item.is_file()]
+    filenames = [item.name for item in directory_path.glob("*") if item.is_dir()]
     return sorted(list(set(filenames)))
 
 
@@ -1105,8 +1110,8 @@ def main(argv: Optional[List[str]] = None):
         help="The specific task to do run"
     )
     parser.add_argument(
-        "--range",
-        type=parse_range,
+        "--subset",
+        type=parse_subset,
         nargs=2,
         metavar=("START", "END"),
         default=None,
@@ -1114,27 +1119,28 @@ def main(argv: Optional[List[str]] = None):
     )
     args = parser.parse_args(argv)
     task = None
-    range = None
+    subset = None
     if args.task is not None:
         task = args.task
-    if args.range is not None:
-        range = args.range
+    if args.subset is not None:
+        subset = args.subset
     
     if task == "setup_configs":
         configs = setup_validation_configs()
     
-    data = load_lastfm_dataset()
 
     data_dir = Path("validation")
     if task == "validate":
+        data = load_lastfm_dataset()
         configs: list[TrainingConfig] = []
         config_files = list_unique_filenames(data_dir / "configs")
         for config_file in config_files:
             config = load_config(data_dir / "configs" / config_file)
             configs.append(config)
-        validation_results = train_different_parameters(data, configs, range)
+        validation_results = train_different_parameters(data, configs, subset)
 
     if task == "evaluate":
+        data = load_lastfm_dataset()
         # look through validation/models for each saved model hash
         # identify best one
         # evaluate and compare using that one
@@ -1149,7 +1155,7 @@ def main(argv: Optional[List[str]] = None):
         print("Evaluation result:")
         print(f"ndcg_at_k: {best_model.result.ndcg_at_k}")
         # evaluate on test
-        ranking_metrics = evaluate_ranking(model, data.train, data.test, 10)
+        ranking_metrics = evaluate_ranking(best_model.model, data.train, data.test, 10)
         print("Result on test data:")
         print(f"ndcg_at_k: {ranking_metrics["ndcg_at_k"]}")
         # compare to implicit
