@@ -6,6 +6,14 @@ Our collaborative filtering model uses matrix factorization optimized with SGD.
 
 ## Usage
 
+Set up your environment first:
+
+```sh
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
 Evaluate model performance with stored model:
 
 ```sh
