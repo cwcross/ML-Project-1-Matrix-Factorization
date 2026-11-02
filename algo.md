@@ -205,3 +205,25 @@ Loss for SGD:
 $$
 \ell = w\left[-y \log \hat p - (1 - y)\log(1 - \hat p)\right] + \frac{\lambda}{2}\left(\lVert p_u \rVert^2 + \lVert q_i \rVert^2\right)
 $$
+
+## Validation
+
+### NDCG
+
+For our validation metric, we chose normalized discounted cumulative gain (NDCG), which is a popular measure of ranking quality for recommender systems.
+
+Cumulative gain, the building block, is given by $CG_p=\sum^p_{i=1}rel_i$, where $rel_i$ is a measure of how relevant the result is at position $i$. For example, an artist who is listened to a lot by fans of another artist will have higher relevance.
+
+DCG is CG with a logarithmic penalty, such that it can be written as:
+
+$$DCG@k=\sum^k_{i=1}\frac{rel_i}{log_2(i+1)}$$
+
+where DCG@k represents the score for the top k artists.
+
+To normalize this, we divide by IDCG@k (the ideal score) to see how well we did compared to the optimal order:
+
+$$NDCG@k=\frac{DCG@k}{IDCG@k} \in [0,1]$$
+
+We then chose our model based on the best NDCG of the tested parameters, where we tried out different combinations of learning rate and regularization.
+
+### Results
