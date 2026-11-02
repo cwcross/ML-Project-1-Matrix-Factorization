@@ -1,0 +1,3 @@
+Config: TrainingConfig(n_factors=16, epochs=4, learning_rate=0.05, regularization=0.01, negatives_per_positive=10, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 410.95 seconds for 4 epochs. 102.74 seconds per epoch
+Training time: 6.85 minutes for 4 epochs. 1.71 minutes per epoch

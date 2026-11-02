@@ -1,0 +1,3 @@
+Config: TrainingConfig(n_factors=16, epochs=8, learning_rate=0.2, regularization=0.01, negatives_per_positive=10, positive_weight_alpha=0.5, batch_size=1024, seed=1235, top_k=10, early_stopping_patience=5)
+Training time: 706.88 seconds for 8 epochs. 88.36 seconds per epoch
+Training time: 11.78 minutes for 8 epochs. 1.47 minutes per epoch
