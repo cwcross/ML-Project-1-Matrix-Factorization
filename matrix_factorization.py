@@ -1012,7 +1012,7 @@ def train_different_parameters(data: DatasetSplits, configs: list[TrainingConfig
         results.append(result)
 
         data_dir = Path("validation/models")
-        save_model(model, config, result, data_dir / f"model_{hash(config)}")
+        save_model(model, config, result, data_dir / f"model_{hash(str(config))}")
     
         with open(data_dir / "training_log_params.txt", "a") as f:
             f.write(current_run + "\n\n\n")
@@ -1050,7 +1050,7 @@ def setup_validation_configs() -> list[TrainingConfig]:
                     early_stopping_patience=5,
                 )
                 configs.append(config)
-                save_config(config, Path("validation/configs") / f"config_{hash(config)}")
+                save_config(config, Path("validation/configs") / f"config_{hash(str(config))}")
 
     return configs
 
